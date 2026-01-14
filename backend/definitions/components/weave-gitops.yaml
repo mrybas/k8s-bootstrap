@@ -1,0 +1,110 @@
+# Weave GitOps - Flux UI
+# Web UI for Flux CD
+
+id: weave-gitops
+name: Weave GitOps (Flux UI)
+description: Web-based UI for Flux CD, providing visibility into GitOps deployments and reconciliations
+category: gitops
+categoryName: GitOps
+categoryDescription: GitOps and continuous delivery
+icon: "🎨"
+priority: 25
+docsUrl: https://docs.gitops.weave.works/
+
+chartType: upstream
+namespace: weave-gitops
+releaseName: weave-gitops
+createNamespace: true
+timeout: 5m
+
+upstream:
+  repository: oci://ghcr.io/weaveworks/charts
+  chartName: weave-gitops
+  version: "4.0.36"
+  appVersion: "0.38.0"
+
+dependsOn:
+  - flux-instance
+
+defaultValues:
+  adminUser:
+    create: true
+    username: admin
+    # Default password: "admin" - CHANGE THIS IN PRODUCTION
+    # Generate new hash: echo -n 'your-password' | gitops get bcrypt-hash
+    passwordHash: "$2a$10$P/tHQ1DN27zDGN7y8YMSoOiSzMw.tqpJToHU7.T.CwFxvoAEH/2Am"
+
+jsonSchema:
+  type: object
+  properties:
+    adminUser:
+      type: object
+      title: Admin User
+      properties:
+        create:
+          type: boolean
+          title: Create Admin User
+          default: true
+        username:
+          type: string
+          title: Username
+          default: admin
+        passwordHash:
+          type: string
+          title: Password Hash (bcrypt)
+          description: "Generate with: echo -n 'password' | gitops get bcrypt-hash"
+    ingress:
+      type: object
+      title: Ingress
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Ingress
+          default: false
+        className:
+          type: string
+          title: Ingress Class
+          default: nginx
+        hosts:
+          type: array
+          title: Hosts
+          items:
+            type: object
+            properties:
+              host:
+                type: string
+                title: Hostname
+              paths:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    path:
+                      type: string
+                      default: "/"
+                    pathType:
+                      type: string
+                      default: Prefix
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              default: "50m"
+            memory:
+              type: string
+              default: "64Mi"
+
+uiSchema:
+  adminUser:
+    passwordHash:
+      ui:widget: password
+  ingress:
+    hosts:
+      ui:widget: array
+  resources:
+    ui:collapsed: true

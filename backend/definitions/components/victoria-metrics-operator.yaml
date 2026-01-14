@@ -1,0 +1,63 @@
+# Victoria Metrics Operator
+# High-performance alternative to Prometheus
+
+id: victoria-metrics-operator
+name: Victoria Metrics Operator
+description: Kubernetes operator for Victoria Metrics - fast and scalable monitoring
+category: observability
+categoryName: Observability
+categoryDescription: Monitoring, logging, and observability tools
+icon: "📊"
+priority: 31
+docsUrl: https://docs.victoriametrics.com/operator/
+
+# Requires Prometheus CRDs for ServiceMonitor compatibility
+requiresCrds:
+  - prometheus-operator-crds
+
+# Operator pattern
+isOperator: true
+operatorFor: victoria-metrics
+suggestsInstances:
+  - victoria-metrics-single
+
+chartType: upstream
+namespace: victoria-metrics
+releaseName: victoria-metrics-operator
+createNamespace: true
+
+upstream:
+  repository: https://victoriametrics.github.io/helm-charts
+  chartName: victoria-metrics-operator
+  version: "0.57.1"
+
+defaultValues:
+  operator:
+    enable_converter_ownership: true
+  serviceMonitor:
+    enabled: true
+
+jsonSchema:
+  type: object
+  properties:
+    operator:
+      type: object
+      title: Operator Settings
+      properties:
+        enable_converter_ownership:
+          type: boolean
+          title: Enable Converter Ownership
+          description: Convert Prometheus ServiceMonitors to VMServiceScrape
+          default: true
+    serviceMonitor:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          title: Enable ServiceMonitor
+          default: true
+
+uiSchema:
+  operator:
+    enable_converter_ownership:
+      ui:help: "Automatically converts Prometheus CRs to VictoriaMetrics CRs"

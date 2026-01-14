@@ -1,0 +1,82 @@
+# Victoria Metrics Alert
+# Alerting system for Victoria Metrics
+
+id: victoria-metrics-alert
+name: Victoria Metrics Alert
+description: Executes alerting and recording rules for Victoria Metrics with Prometheus-compatible API
+category: observability
+categoryName: Observability
+categoryDescription: Monitoring, logging and tracing
+icon: "🚨"
+priority: 56
+docsUrl: https://docs.victoriametrics.com/vmalert/
+
+chartType: upstream
+namespace: victoria-metrics
+releaseName: vmalert
+createNamespace: true
+timeout: 5m
+
+upstream:
+  repository: https://victoriametrics.github.io/helm-charts/
+  chartName: victoria-metrics-alert
+  version: "0.29.0"
+  appVersion: "v1.106.1"
+
+dependsOn:
+  - victoria-metrics-operator
+
+isInstance: true
+instanceOf: victoria-metrics-operator
+
+defaultValues:
+  replicaCount: 1
+  # server.datasource is required
+  server:
+    datasource:
+      url: http://victoria-metrics-single:8428
+
+jsonSchema:
+  type: object
+  properties:
+    replicaCount:
+      type: integer
+      title: Replicas
+      minimum: 1
+      default: 1
+    datasource:
+      type: object
+      title: Datasource
+      properties:
+        url:
+          type: string
+          title: Victoria Metrics URL
+          default: "http://vmsingle-victoria-metrics-single:8428"
+    notifiers:
+      type: array
+      title: Alertmanager Endpoints
+      items:
+        type: object
+        properties:
+          url:
+            type: string
+            title: Alertmanager URL
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              default: "50m"
+            memory:
+              type: string
+              default: "64Mi"
+
+uiSchema:
+  replicaCount:
+    ui:widget: updown
+  resources:
+    ui:collapsed: true

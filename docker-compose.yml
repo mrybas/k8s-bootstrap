@@ -1,0 +1,70 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/definitions:/app/definitions
+      - ./backend/templates:/app/templates
+      - ./docs:/app/docs
+    environment:
+      - K8S_BOOTSTRAP_DEBUG=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        BACKEND_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # Development only - hot reload
+  # For full dev environment with k8s cluster, use: make dev
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_URL=http://backend:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      backend:
+        condition: service_healthy
+    profiles:
+      - dev
+
+  # Chart version updater - checks and updates helm chart versions
+  # Usage: docker compose run --rm update-versions
+  #        docker compose run --rm update-versions --update
+  update-versions:
+    build:
+      context: .
+      dockerfile: scripts/Dockerfile.updater
+    volumes:
+      - ./backend/definitions:/app/backend/definitions
+    profiles:
+      - tools
+
+networks:
+  default:
+    driver: bridge

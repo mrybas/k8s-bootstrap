@@ -1,0 +1,379 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ============================================================================
+# K8s Bootstrap Script
+# Cluster: {{ cluster_name }}
+# Repository: {{ repo_url }}
+# ============================================================================
+
+usage() {
+    cat <<EOF
+Usage: $0 [OPTIONS]
+
+Bootstrap a Kubernetes cluster with Flux GitOps
+
+Options:
+    -k, --kubeconfig PATH    Path to kubeconfig file
+    -c, --context NAME       Kubernetes context to use
+    -u, --git-user USER      Git username (for HTTPS auth)
+    -t, --git-token TOKEN    Git token (for HTTPS auth)
+    -h, --help               Show this help message
+
+Environment variables:
+    GIT_USERNAME    Git username (for HTTPS auth)
+    GIT_TOKEN       Git access token (for HTTPS auth)
+EOF
+    exit 0
+}
+
+# Parse arguments
+CUSTOM_KUBECONFIG=""
+CUSTOM_CONTEXT=""
+GIT_USERNAME="${GIT_USERNAME:-}"
+GIT_TOKEN="${GIT_TOKEN:-}"
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -k|--kubeconfig) CUSTOM_KUBECONFIG="$2"; shift 2 ;;
+        -c|--context) CUSTOM_CONTEXT="$2"; shift 2 ;;
+        -u|--git-user) GIT_USERNAME="$2"; shift 2 ;;
+        -t|--git-token) GIT_TOKEN="$2"; shift 2 ;;
+        -h|--help) usage ;;
+        *) echo "Unknown option: $1"; usage ;;
+    esac
+done
+
+# Setup kubectl/helm wrappers
+KUBE_ARGS=""
+[[ -n "${CUSTOM_KUBECONFIG}" ]] && { export KUBECONFIG="${CUSTOM_KUBECONFIG}"; KUBE_ARGS="--kubeconfig=${CUSTOM_KUBECONFIG}"; }
+[[ -n "${CUSTOM_CONTEXT}" ]] && KUBE_ARGS="${KUBE_ARGS} --context=${CUSTOM_CONTEXT}"
+
+kctl() { kubectl ${KUBE_ARGS} "$@"; }
+hlm() { helm ${KUBE_ARGS} "$@"; }
+
+# Configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHARTS_DIR="${SCRIPT_DIR}/charts"
+CLUSTER_NAME="{{ cluster_name }}"
+REPO_URL="{{ repo_url }}"
+BRANCH="{{ branch }}"
+FLUX_NS="flux-system"
+AGE_KEY_DIR="${SCRIPT_DIR}/.age"
+AGE_KEY="${AGE_KEY_DIR}/key.txt"
+
+GIT_AUTH_ENABLED="{{ 'true' if git_auth_enabled else 'false' }}"
+GIT_PLATFORM="{{ git_platform }}"
+AUTH_TYPE="{{ auth_type }}"
+
+{% include 'scripts/partials/_colors.sh.j2' %}
+
+{% include 'scripts/partials/_functions.sh.j2' %}
+
+update_flux_instance_manifest() {
+    log "Updating flux-instance HelmRelease with credentials..."
+    
+    # New path: manifests/releases/core/flux-instance.yaml
+    local manifest_file="${SCRIPT_DIR}/manifests/releases/core/flux-instance.yaml"
+    mkdir -p "$(dirname "$manifest_file")"
+    local values_file="${SCRIPT_DIR}/.flux-instance-values.yaml"
+    
+{% if auth_type == 'none' %}
+    # No auth - simple values
+    cat > "$values_file" <<'VEOF'
+gitRepository:
+  name: flux-system
+  url: {{ repo_url }}
+  branch: {{ branch }}
+  interval: 1m
+gitCredentials:
+  enabled: false
+VEOF
+
+    cat > "$manifest_file" <<'HREOF'
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: flux-instance
+  namespace: flux-system
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: ./charts/core/flux-instance
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+  values:
+    gitRepository:
+      name: flux-system
+      url: {{ repo_url }}
+      branch: {{ branch }}
+      interval: 1m
+    gitCredentials:
+      enabled: false
+HREOF
+    ok "flux-instance manifest updated (no auth)"
+{% else %}
+    # Auth enabled - check if we can encrypt
+    local can_encrypt=false
+    local age_pub=""
+    
+    if command -v sops &>/dev/null && [[ -f "${AGE_KEY}" ]]; then
+        age_pub=$(grep "public key:" "${AGE_KEY}" | cut -d: -f2 | tr -d " ")
+        [[ -n "$age_pub" ]] && can_encrypt=true
+    fi
+    
+{% if auth_type == 'https' %}
+    # First create unencrypted values for initial Helm install
+    cat > "$values_file" <<VEOF
+gitRepository:
+  name: flux-system
+  url: {{ repo_url }}
+  branch: {{ branch }}
+  interval: 1m
+gitCredentials:
+  enabled: true
+  type: https
+  username: ${GIT_USERNAME}
+  password: ${GIT_TOKEN}
+VEOF
+
+    if [[ "$can_encrypt" == "true" ]]; then
+        log "Encrypting credentials with SOPS/Age..."
+        
+        # First ensure .sops.yaml is updated with the age key
+        if [[ -f "${SCRIPT_DIR}/.sops.yaml" ]]; then
+            sed -i.bak "s/AGE_PUBLIC_KEY/$age_pub/g" "${SCRIPT_DIR}/.sops.yaml" 2>/dev/null && rm -f "${SCRIPT_DIR}/.sops.yaml.bak"
+        fi
+        
+        # Copy to file matching .sops.yaml pattern (*.enc.yaml)
+        local enc_file="${SCRIPT_DIR}/.tmp-values.enc.yaml"
+        cp "$values_file" "$enc_file"
+        
+        # Encrypt using SOPS with the config file
+        local encrypted_values
+        encrypted_values=$(cd "${SCRIPT_DIR}" && SOPS_AGE_KEY_FILE="${AGE_KEY}" sops --encrypt \
+            --encrypted-regex "^(password|agekey)$" \
+            ".tmp-values.enc.yaml" 2>&1)
+        local sops_rc=$?
+        rm -f "$enc_file"
+        
+        if [[ $sops_rc -ne 0 ]] || [[ -z "$encrypted_values" ]]; then
+            warn "SOPS encryption failed: $encrypted_values"
+            warn "Storing credentials in plaintext in HelmRelease (NOT RECOMMENDED)"
+            # Use plaintext in HelmRelease
+            cat > "$manifest_file" <<HREOF
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: flux-instance
+  namespace: flux-system
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: ./charts/core/flux-instance
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+  values:
+    gitRepository:
+      name: flux-system
+      url: {{ repo_url }}
+      branch: {{ branch }}
+      interval: 1m
+    gitCredentials:
+      enabled: true
+      type: https
+      username: ${GIT_USERNAME}
+      password: ${GIT_TOKEN}
+HREOF
+            warn "flux-instance HelmRelease created (PLAINTEXT!)"
+        else
+            # Create HelmRelease with encrypted values
+            cat > "$manifest_file" <<HREOF
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: flux-instance
+  namespace: flux-system
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: ./charts/core/flux-instance
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+  values:
+$(echo "$encrypted_values" | sed 's/^/    /')
+HREOF
+            ok "flux-instance manifest updated with encrypted credentials"
+        fi
+    else
+        warn "SOPS not available - storing credentials in plaintext (NOT RECOMMENDED)"
+        cat > "$manifest_file" <<HREOF
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: flux-instance
+  namespace: flux-system
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: ./charts/core/flux-instance
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+  values:
+    gitRepository:
+      name: flux-system
+      url: {{ repo_url }}
+      branch: {{ branch }}
+      interval: 1m
+    gitCredentials:
+      enabled: true
+      type: https
+      username: ${GIT_USERNAME}
+      password: ${GIT_TOKEN}
+HREOF
+        warn "flux-instance manifest updated (PLAINTEXT credentials!)"
+    fi
+{% elif auth_type == 'ssh' %}
+    local identity_content=$(cat "${SSH_KEY}")
+    local identity_pub_content=$(cat "${SSH_KEY}.pub")
+    local known_hosts_content=$(ssh-keyscan github.com gitlab.com 2>/dev/null)
+    
+    # Create unencrypted values for initial Helm install
+    cat > "$values_file" <<VEOF
+gitRepository:
+  name: flux-system
+  url: {{ repo_url }}
+  branch: {{ branch }}
+  interval: 1m
+gitCredentials:
+  enabled: true
+  type: ssh
+  identity: |
+$(echo "$identity_content" | sed 's/^/    /')
+  identityPub: |
+$(echo "$identity_pub_content" | sed 's/^/    /')
+  knownHosts: |
+$(echo "$known_hosts_content" | sed 's/^/    /')
+VEOF
+    
+    # Create HelmRelease manifest (for Git/Flux - no encryption for SSH)
+    cat > "$manifest_file" <<HREOF
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: flux-instance
+  namespace: flux-system
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: ./charts/core/flux-instance
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+  values:
+    gitRepository:
+      name: flux-system
+      url: {{ repo_url }}
+      branch: {{ branch }}
+      interval: 1m
+    gitCredentials:
+      enabled: true
+      type: ssh
+      identity: |
+$(echo "$identity_content" | sed 's/^/        /')
+      identityPub: |
+$(echo "$identity_pub_content" | sed 's/^/        /')
+      knownHosts: |
+$(echo "$known_hosts_content" | sed 's/^/        /')
+HREOF
+    ok "flux-instance manifest updated (SSH)"
+{% endif %}
+{% endif %}
+}
+
+main() {
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║           K8s Bootstrap - Flux GitOps                        ║"
+    echo "╠══════════════════════════════════════════════════════════════╣"
+    echo "║  Cluster: ${CLUSTER_NAME}"
+    echo "║  Repo:    ${REPO_URL}"
+    echo "║  Branch:  ${BRANCH}"
+    echo "║  Auth:    ${AUTH_TYPE}"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo ""
+    
+    check_deps
+    vendor_charts
+    setup_git
+    
+{% if auth_type != 'none' %}
+    setup_age || true
+    get_credentials
+{% endif %}
+    
+    update_flux_instance_manifest
+    
+{% if skip_git_push %}
+    # Skip git push mode - just prepare the repository
+    echo ""
+    ok "════════════════════════════════════════════════════════════"
+    ok "Repository prepared! (Git push skipped)"
+    ok "════════════════════════════════════════════════════════════"
+    echo ""
+    echo "The repository is ready at: $(pwd)"
+    echo ""
+    echo "To deploy to cluster, run:"
+    echo "  1. Review the generated files"
+    echo "  2. git push -u origin {{ branch }}"
+    echo "  3. Run ./bootstrap.sh again (without --skip-push)"
+    echo ""
+    echo "Or run Flux installation manually:"
+    echo "  ./bootstrap.sh --install-only"
+    echo ""
+{% else %}
+    push_to_remote
+    install_flux_operator
+    
+    create_flux_instance
+{% if auth_type != 'none' %}
+    create_sops_age_secret
+{% endif %}
+    install_namespaces_chart
+    install_flux_gitops
+    show_status
+    
+    echo ""
+    ok "════════════════════════════════════════════════════════════"
+    ok "Bootstrap complete! Flux is now managing the cluster."
+    ok "════════════════════════════════════════════════════════════"
+    echo ""
+    echo "Flux will reconcile from:"
+    echo "  - manifests/namespaces/        (Namespace chart)"
+    echo "  - manifests/releases/<category>/ (All HelmReleases)"
+    echo ""
+    echo "Monitor: kubectl get kustomizations,helmreleases -A"
+    echo ""
+{% endif %}
+}
+
+main "$@"

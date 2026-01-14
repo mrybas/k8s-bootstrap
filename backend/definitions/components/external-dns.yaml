@@ -1,0 +1,119 @@
+# External DNS
+# Automatic DNS management
+
+id: external-dns
+name: External DNS
+description: Automatically manage DNS records for Ingress and Service resources
+category: ingress
+categoryName: Ingress
+categoryDescription: Ingress controllers and load balancers
+icon: "🌍"
+priority: 25
+docsUrl: https://kubernetes-sigs.github.io/external-dns/
+
+chartType: upstream
+namespace: external-dns
+releaseName: external-dns
+createNamespace: true
+
+upstream:
+  repository: https://kubernetes-sigs.github.io/external-dns
+  chartName: external-dns
+  version: "1.20.0"
+
+defaultValues:
+  provider: cloudflare
+  policy: sync
+  sources:
+    - ingress
+    - service
+  domainFilters: []
+  txtOwnerId: ""
+  serviceMonitor:
+    enabled: false
+
+jsonSchema:
+  type: object
+  properties:
+    provider:
+      type: string
+      title: DNS Provider
+      enum:
+        - cloudflare
+        - aws
+        - google
+        - azure
+        - digitalocean
+        - linode
+        - vultr
+        - ovh
+        - hetzner
+      default: cloudflare
+    policy:
+      type: string
+      title: Sync Policy
+      enum:
+        - sync
+        - upsert-only
+      default: sync
+    sources:
+      type: array
+      title: Sources
+      description: Kubernetes resources to watch
+      items:
+        type: string
+        enum: [ingress, service, istio-gateway, istio-virtualservice]
+      default: ["ingress", "service"]
+    domainFilters:
+      type: array
+      title: Domain Filters
+      description: Limit to specific domains
+      items:
+        type: string
+    txtOwnerId:
+      type: string
+      title: TXT Owner ID
+      description: Unique identifier for this instance
+    env:
+      type: array
+      title: Environment Variables
+      description: Provider credentials (or use existingSecret)
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+          value:
+            type: string
+    serviceMonitor:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          title: Enable ServiceMonitor
+          default: false
+
+uiSchema:
+  provider:
+    ui:widget: select
+    ui:help: "Select your DNS provider"
+  policy:
+    ui:widget: select
+    ui:help: "sync: create, update, delete. upsert-only: create and update only"
+  sources:
+    ui:widget: checkboxes
+  domainFilters:
+    ui:widget: array
+    ui:placeholder: "example.com"
+  txtOwnerId:
+    ui:placeholder: "my-cluster"
+    ui:help: "Required when multiple clusters manage the same zone"
+  env:
+    ui:widget: keyvalue
+    ui:collapsed: true
+    ui:help: |
+      Common env vars by provider:
+      - Cloudflare: CF_API_TOKEN
+      - AWS: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+      - Google: GOOGLE_APPLICATION_CREDENTIALS
+      - Azure: AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET

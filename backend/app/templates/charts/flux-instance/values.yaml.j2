@@ -1,0 +1,20 @@
+# Flux Instance Chart Values
+# This chart creates GitRepository for GitOps
+# Kustomizations are static files in manifests/kustomizations/
+# HelmReleases are static files in manifests/releases/<category>/
+
+gitRepository:
+  name: flux-system
+  url: {{ repo_url | default('') }}
+  branch: {{ branch | default('main') }}
+  interval: 1m
+
+gitCredentials:
+  enabled: false
+  type: https
+  username: ""
+  password: ""
+  # SSH fields
+  identity: ""
+  identityPub: ""
+  knownHosts: ""

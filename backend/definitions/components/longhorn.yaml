@@ -1,0 +1,113 @@
+# Longhorn
+# Distributed storage for Kubernetes
+
+id: longhorn
+name: Longhorn
+description: Cloud-native distributed storage for Kubernetes (persistent volumes)
+category: storage
+categoryName: Storage
+categoryDescription: Storage solutions for persistent data
+icon: "💾"
+priority: 50
+docsUrl: https://longhorn.io/docs/
+
+chartType: upstream
+namespace: longhorn-system
+releaseName: longhorn
+createNamespace: true
+
+upstream:
+  repository: https://charts.longhorn.io
+  chartName: longhorn
+  version: "1.10.1"
+
+defaultValues:
+  persistence:
+    defaultClass: true
+    defaultClassReplicaCount: 3
+  defaultSettings:
+    defaultReplicaCount: 3
+    storageMinimalAvailablePercentage: 10
+    upgradeChecker: false
+  ingress:
+    enabled: false
+  serviceMonitor:
+    enabled: false
+
+jsonSchema:
+  type: object
+  properties:
+    persistence:
+      type: object
+      title: Persistence
+      properties:
+        defaultClass:
+          type: boolean
+          title: Set as Default StorageClass
+          default: true
+        defaultClassReplicaCount:
+          type: integer
+          title: Default Replica Count
+          minimum: 1
+          maximum: 5
+          default: 3
+    defaultSettings:
+      type: object
+      title: Default Settings
+      properties:
+        defaultReplicaCount:
+          type: integer
+          title: Default Replica Count
+          minimum: 1
+          maximum: 5
+          default: 3
+        backupTarget:
+          type: string
+          title: Backup Target
+          description: "S3 URL or NFS path for backups"
+        backupTargetCredentialSecret:
+          type: string
+          title: Backup Credentials Secret
+        storageMinimalAvailablePercentage:
+          type: integer
+          title: Minimal Available Storage %
+          default: 10
+    ingress:
+      type: object
+      title: Ingress (UI)
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Ingress
+          default: false
+        host:
+          type: string
+          title: Hostname
+        tls:
+          type: boolean
+          title: Enable TLS
+          default: false
+    serviceMonitor:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          title: Enable ServiceMonitor
+          default: false
+
+uiSchema:
+  persistence:
+    defaultClassReplicaCount:
+      ui:widget: updown
+  defaultSettings:
+    defaultReplicaCount:
+      ui:widget: updown
+    backupTarget:
+      ui:placeholder: "s3://bucket@region/path or nfs://server:/path"
+      ui:help: "Optional: Configure backup destination"
+    backupTargetCredentialSecret:
+      ui:help: "Secret with AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY"
+  ingress:
+    ui:collapsed: true
+    host:
+      ui:placeholder: "longhorn.example.com"

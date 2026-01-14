@@ -1,0 +1,42 @@
+# Monitoring stack test scenario
+# Tests Prometheus + Grafana operator setup
+
+name: monitoring
+description: Monitoring stack with Prometheus and Grafana
+
+components:
+  - prometheus-operator-crds
+  - kube-prometheus-stack
+  - grafana-operator
+  - grafana-instance
+
+# Expected results after Flux reconciliation
+expected:
+  namespaces:
+    - flux-system
+    - monitoring
+  
+  helmreleases:
+    - name: prometheus-operator-crds
+      namespace: flux-system
+      ready: true
+    - name: kube-prometheus-stack
+      namespace: flux-system
+      ready: true
+    - name: grafana-operator
+      namespace: flux-system
+      ready: true
+    - name: grafana-instance
+      namespace: flux-system
+      ready: true
+  
+  deployments:
+    - name: prometheus-operator
+      namespace: monitoring
+    - name: grafana-operator-controller-manager
+      namespace: monitoring
+
+# Timeouts - monitoring stack is heavy
+timeouts:
+  flux_sync: 900      # 15 minutes
+  helmrelease: 600    # 10 minutes per HelmRelease

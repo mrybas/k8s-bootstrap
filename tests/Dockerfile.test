@@ -1,0 +1,98 @@
+# Test Runner Container
+# This container includes all tools needed for testing:
+# - Python with pytest
+# - kind (Kubernetes IN Docker)
+# - kubectl
+# - helm
+# - Docker CLI (for DinD)
+
+FROM python:3.11-slim
+
+# Versions
+ARG KIND_VERSION=v0.20.0
+ARG HELM_VERSION=v3.14.0
+ARG KUBECTL_VERSION=v1.29.0
+ARG AGE_VERSION=v1.1.1
+ARG SOPS_VERSION=v3.8.1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    git \
+    jq \
+    unzip \
+    gnupg \
+    lsb-release \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install age (for SOPS encryption)
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -fsSL "https://github.com/FiloSottile/age/releases/download/${AGE_VERSION}/age-${AGE_VERSION}-linux-${ARCH}.tar.gz" | tar xz && \
+    mv age/age age/age-keygen /usr/local/bin/ && \
+    rm -rf age
+
+# Install SOPS
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -fsSL -o /usr/local/bin/sops "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.${ARCH}" && \
+    chmod +x /usr/local/bin/sops
+
+# Install Docker CLI from official repo
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends docker-ce-cli \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install kind
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -Lo /usr/local/bin/kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-${ARCH}" && \
+    chmod +x /usr/local/bin/kind
+
+# Install kubectl
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -Lo /usr/local/bin/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" && \
+    chmod +x /usr/local/bin/kubectl
+
+# Install helm
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz" | tar xz && \
+    mv linux-*/helm /usr/local/bin/helm && \
+    rm -rf linux-*
+
+# Create non-root user for running tests (docker group may not exist without full docker install)
+RUN useradd -m -s /bin/bash tester && \
+    (groupadd -f docker && usermod -aG docker tester || true)
+
+# Set working directory
+WORKDIR /app
+
+# Copy and install Python dependencies
+COPY backend/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
+    pip install --no-cache-dir \
+        pytest \
+        pytest-asyncio \
+        pytest-timeout \
+        pytest-xdist \
+        pytest-cov \
+        jsonschema \
+        requests \
+        httpx
+
+# Copy test fixtures
+COPY tests/fixtures /app/tests/fixtures
+
+# Copy scripts for testing
+COPY scripts /app/scripts
+
+# Set Python path
+ENV PYTHONPATH=/app/backend:/app:/app/scripts
+ENV PYTHONUNBUFFERED=1
+
+# Labels
+LABEL maintainer="k8s-bootstrap"
+LABEL description="Test runner for k8s-bootstrap project"
+
+# Default command
+CMD ["pytest", "-v", "--tb=short"]

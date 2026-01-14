@@ -1,0 +1,177 @@
+# K8s Bootstrap - Developer Environment
+# ======================================
+#
+# All-in-Docker setup - only Docker required locally!
+#
+# Usage:
+#   make dev        - Start environment
+#   make dev-shell  - Open shell with all tools
+#   make dev-stop   - Stop environment
+#
+
+services:
+  # ==========================================================================
+  # Toolbox - Container with Kind cluster + all tools
+  # ==========================================================================
+  toolbox:
+    build:
+      context: .
+      dockerfile: Dockerfile.toolbox
+    container_name: k8s-bootstrap-toolbox
+    privileged: true  # Required for Docker-in-Docker (kind)
+    environment:
+      - KUBECONFIG=/workspace/.kube/config
+      - GITEA_URL=http://gitea:3000
+      - GITEA_USER=dev
+      - GITEA_PASS=dev12345
+      - GITEA_EMAIL=dev@localhost
+      - BACKEND_URL=http://backend:8000
+      - KIND_EXPERIMENTAL_DOCKER_NETWORK=k8s-bootstrap-dev
+    volumes:
+      # Docker socket for kind
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Workspace for generated files
+      - ./workspace:/workspace
+      # Mount project for development
+      - ..:/project:ro
+    working_dir: /workspace
+    networks:
+      - dev-network
+    stdin_open: true
+    tty: true
+    depends_on:
+      gitea:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
+  # ==========================================================================
+  # Git Server (Gitea)
+  # ==========================================================================
+  gitea:
+    image: gitea/gitea:1.21-rootless
+    container_name: k8s-bootstrap-gitea
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__database__DB_TYPE=sqlite3
+      - GITEA__server__ROOT_URL=http://localhost:3030
+      - GITEA__server__HTTP_PORT=3000
+      - GITEA__server__DISABLE_SSH=true
+      - GITEA__security__INSTALL_LOCK=true
+      - GITEA__service__DISABLE_REGISTRATION=false
+      - GITEA__service__REQUIRE_SIGNIN_VIEW=false
+    volumes:
+      - gitea-data:/var/lib/gitea
+      - gitea-config:/etc/gitea
+    ports:
+      - "3030:3000"  # Gitea on 3030, Frontend uses 3000
+    networks:
+      - dev-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/version"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ==========================================================================
+  # Gitea init - creates user and test repo using Gitea CLI
+  # ==========================================================================
+  gitea-init:
+    image: gitea/gitea:1.21-rootless
+    container_name: k8s-bootstrap-gitea-init
+    depends_on:
+      gitea:
+        condition: service_healthy
+    environment:
+      - GITEA_URL=http://gitea:3000
+      - GITEA_USER=dev
+      - GITEA_PASS=dev12345
+      - GITEA_EMAIL=dev@localhost
+    volumes:
+      - gitea-data:/var/lib/gitea
+      - gitea-config:/etc/gitea
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "👤 Creating admin user via CLI..."
+        # Use gitea CLI to create admin user (works without auth)
+        gitea admin user create \
+          --username "$$GITEA_USER" \
+          --password "$$GITEA_PASS" \
+          --email "$$GITEA_EMAIL" \
+          --admin \
+          --must-change-password=false 2>/dev/null || echo "User may already exist"
+        
+        # Wait for user to be available
+        sleep 2
+        
+        echo "📁 Creating test repository..."
+        curl -s -X POST "$$GITEA_URL/api/v1/user/repos" \
+          -u "$$GITEA_USER:$$GITEA_PASS" \
+          -H "Content-Type: application/json" \
+          -d '{"name":"bootstrap-test","private":false,"auto_init":false}' || true
+        
+        echo "✅ Gitea ready: http://localhost:3030 (dev/dev12345)"
+    networks:
+      - dev-network
+
+  # ==========================================================================
+  # Backend API
+  # ==========================================================================
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: k8s-bootstrap-backend
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://frontend:3000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend/app:/app/app:ro
+      - ../backend/definitions:/app/definitions:ro
+      - ../docs:/docs:ro
+    networks:
+      - dev-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ==========================================================================
+  # Frontend (Next.js)
+  # ==========================================================================
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.dev
+    container_name: k8s-bootstrap-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000  # Client-side (browser)
+      - BACKEND_URL=http://backend:8000             # Server-side (container network)
+      - NEXT_PUBLIC_DEV_MODE=true                   # Show container URLs for toolbox
+      - WATCHPACK_POLLING=true
+    ports:
+      - "3000:3000"  # Standard Next.js port
+    volumes:
+      - ../frontend/src:/app/src:ro
+      - ../frontend/public:/app/public:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - dev-network
+
+networks:
+  dev-network:
+    name: k8s-bootstrap-dev
+
+volumes:
+  gitea-data:
+    name: k8s-bootstrap-gitea-data
+  gitea-config:
+    name: k8s-bootstrap-gitea-config

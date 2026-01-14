@@ -1,0 +1,148 @@
+# Cert-Manager Issuers
+# Configures ClusterIssuers for certificate provisioning
+
+id: cert-manager-issuers
+name: Certificate Issuers
+description: Configure ClusterIssuers for automatic TLS certificates (Let's Encrypt by default)
+category: security
+categoryName: Security
+categoryDescription: Security and certificate management
+icon: "📜"
+priority: 12  # After cert-manager
+docsUrl: https://cert-manager.io/docs/configuration/acme/
+
+chartType: custom
+namespace: cert-manager
+releaseName: cert-manager-issuers
+createNamespace: false
+
+dependsOn:
+  - cert-manager
+
+defaultValues:
+  letsencrypt:
+    enabled: true
+    email: ""
+    staging:
+      enabled: true
+    production:
+      enabled: true
+  selfSigned:
+    enabled: true
+
+jsonSchema:
+  type: object
+  properties:
+    letsencrypt:
+      type: object
+      title: Let's Encrypt
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Let's Encrypt Issuers
+          default: true
+        email:
+          type: string
+          title: Email Address
+          description: Email for Let's Encrypt notifications (required)
+          format: email
+        staging:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Create Staging Issuer
+              description: For testing (no rate limits)
+              default: true
+        production:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Create Production Issuer
+              description: For production certificates
+              default: true
+    selfSigned:
+      type: object
+      title: Self-Signed
+      properties:
+        enabled:
+          type: boolean
+          title: Create Self-Signed Issuer
+          description: For internal/development certificates
+          default: true
+
+uiSchema:
+  letsencrypt:
+    email:
+      ui:placeholder: "admin@example.com"
+      ui:help: "Required for Let's Encrypt certificate expiry notifications"
+
+templates:
+  clusterissuers.yaml: |
+    {{- if .Values.selfSigned.enabled }}
+    ---
+    apiVersion: cert-manager.io/v1
+    kind: ClusterIssuer
+    metadata:
+      name: selfsigned
+    spec:
+      selfSigned: {}
+    {{- end }}
+    
+    {{- if and .Values.letsencrypt.enabled .Values.letsencrypt.email }}
+    {{- if .Values.letsencrypt.staging.enabled }}
+    ---
+    apiVersion: cert-manager.io/v1
+    kind: ClusterIssuer
+    metadata:
+      name: letsencrypt-staging
+    spec:
+      acme:
+        server: https://acme-staging-v02.api.letsencrypt.org/directory
+        email: {{ .Values.letsencrypt.email }}
+        privateKeySecretRef:
+          name: letsencrypt-staging-account-key
+        solvers:
+          - http01:
+              ingress:
+                class: nginx
+    {{- end }}
+    
+    {{- if .Values.letsencrypt.production.enabled }}
+    ---
+    apiVersion: cert-manager.io/v1
+    kind: ClusterIssuer
+    metadata:
+      name: letsencrypt-production
+    spec:
+      acme:
+        server: https://acme-v02.api.letsencrypt.org/directory
+        email: {{ .Values.letsencrypt.email }}
+        privateKeySecretRef:
+          name: letsencrypt-production-account-key
+        solvers:
+          - http01:
+              ingress:
+                class: nginx
+    {{- end }}
+    {{- end }}
+  NOTES.txt: |
+    Cert-Manager Issuers installed!
+    
+    Available ClusterIssuers:
+    {{- if .Values.selfSigned.enabled }}
+      - selfsigned (for internal certificates)
+    {{- end }}
+    {{- if and .Values.letsencrypt.enabled .Values.letsencrypt.email }}
+    {{- if .Values.letsencrypt.staging.enabled }}
+      - letsencrypt-staging (for testing)
+    {{- end }}
+    {{- if .Values.letsencrypt.production.enabled }}
+      - letsencrypt-production (for production)
+    {{- end }}
+    {{- end }}
+    
+    Usage in Ingress:
+      annotations:
+        cert-manager.io/cluster-issuer: "letsencrypt-production"

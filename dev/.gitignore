@@ -1,0 +1,5 @@
+# Workspace - generated files go here
+workspace/
+
+# Local config overrides
+config.local.yaml

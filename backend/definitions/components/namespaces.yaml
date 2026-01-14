@@ -1,0 +1,101 @@
+# Namespaces Component Definition
+# Custom chart for managing namespaces via GitOps
+# AUTO-GENERATED: This component is hidden and automatically includes
+# namespaces for all selected components
+
+id: namespaces
+name: Namespaces
+description: Manage Kubernetes namespaces declaratively
+category: core
+categoryName: Core
+categoryDescription: Flux and core infrastructure
+icon: "📁"
+priority: 3  # After flux-operator and flux-instance
+
+# Hidden from UI - auto-generated based on selected components
+hidden: true
+autoGenerate: true
+
+chartType: custom
+namespace: default
+releaseName: namespaces
+createNamespace: false
+
+# Default values (will be populated automatically)
+defaultValues:
+  namespaces: []
+
+# JSON Schema for UI form
+jsonSchema:
+  type: object
+  properties:
+    namespaces:
+      type: array
+      title: Namespaces
+      description: List of namespaces to create
+      items:
+        type: object
+        required:
+          - name
+        properties:
+          name:
+            type: string
+            title: Namespace Name
+            pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+            minLength: 1
+            maxLength: 63
+          labels:
+            type: object
+            title: Labels
+            additionalProperties:
+              type: string
+          annotations:
+            type: object
+            title: Annotations
+            additionalProperties:
+              type: string
+
+# UI Schema for form rendering
+uiSchema:
+  namespaces:
+    ui:widget: array
+    ui:options:
+      addable: true
+      removable: true
+      orderable: true
+    items:
+      name:
+        ui:placeholder: "my-namespace"
+        ui:autofocus: true
+      labels:
+        ui:widget: keyvalue
+        ui:options:
+          addButtonText: "Add Label"
+      annotations:
+        ui:widget: keyvalue
+        ui:options:
+          addButtonText: "Add Annotation"
+
+# Chart templates (for custom charts)
+templates:
+  namespaces.yaml: |
+    {{- range .Values.namespaces }}
+    ---
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: {{ .name }}
+      {{- with .labels }}
+      labels:
+        {{- toYaml . | nindent 4 }}
+      {{- end }}
+      {{- with .annotations }}
+      annotations:
+        {{- toYaml . | nindent 4 }}
+      {{- end }}
+    {{- end }}
+  NOTES.txt: |
+    Namespaces managed by this release:
+    {{- range .Values.namespaces }}
+      - {{ .name }}
+    {{- end }}

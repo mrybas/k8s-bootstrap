@@ -1,0 +1,121 @@
+# WireGuard - VPN Server
+# Auto-generated component definition
+
+id: wireguard
+name: WireGuard
+description: Fast, modern, secure VPN tunnel using WireGuard protocol
+category: security
+categoryName: Security
+categoryDescription: Security, certificates, and secrets management
+icon: "🔒"
+priority: 50
+docsUrl: https://www.wireguard.com/
+
+chartType: upstream
+namespace: wireguard
+releaseName: wireguard
+createNamespace: true
+timeout: 5m
+
+upstream:
+  repository: https://bryopsida.github.io/wireguard-chart
+  chartName: wireguard
+  version: "0.31.0"
+  appVersion: "latest"
+
+dependsOn: []
+
+defaultValues:
+  replicaCount: 1
+  service:
+    type: LoadBalancer
+    port: 51820
+
+jsonSchema:
+  type: object
+  properties:
+    replicaCount:
+      type: integer
+      title: Replicas
+      default: 1
+      minimum: 1
+    service:
+      type: object
+      title: Service Configuration
+      properties:
+        type:
+          type: string
+          title: Service Type
+          enum:
+            - ClusterIP
+            - NodePort
+            - LoadBalancer
+          default: LoadBalancer
+        port:
+          type: integer
+          title: WireGuard Port
+          default: 51820
+    persistence:
+      type: object
+      title: Persistence
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Persistence
+          default: true
+        size:
+          type: string
+          title: Storage Size
+          default: 100Mi
+    config:
+      type: object
+      title: WireGuard Configuration
+      properties:
+        serverAddress:
+          type: string
+          title: Server VPN Address
+          description: Internal VPN address for server
+          default: 10.8.0.1/24
+        serverPrivateKey:
+          type: string
+          title: Server Private Key
+          description: Leave empty to auto-generate
+        peers:
+          type: array
+          title: Peers
+          description: VPN peer configurations
+          items:
+            type: object
+            properties:
+              publicKey:
+                type: string
+                title: Peer Public Key
+              allowedIPs:
+                type: string
+                title: Allowed IPs
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Request
+              default: "50m"
+            memory:
+              type: string
+              title: Memory Request
+              default: "64Mi"
+
+uiSchema:
+  config:
+    serverPrivateKey:
+      ui:widget: password
+    peers:
+      ui:collapsed: true
+  persistence:
+    ui:collapsed: true
+  resources:
+    ui:collapsed: true

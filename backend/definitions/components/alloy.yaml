@@ -1,0 +1,85 @@
+# Grafana Alloy - OpenTelemetry Collector
+# Auto-generated component definition
+
+id: alloy
+name: Grafana Alloy
+description: Vendor-neutral distribution of the OpenTelemetry Collector with Grafana integrations
+category: observability
+categoryName: Observability
+categoryDescription: Monitoring, logging, tracing, and alerting
+icon: "📡"
+priority: 50
+docsUrl: https://grafana.com/docs/alloy/latest/
+
+chartType: upstream
+namespace: alloy
+releaseName: alloy
+createNamespace: true
+timeout: 5m
+
+upstream:
+  repository: https://grafana.github.io/helm-charts
+  chartName: alloy
+  version: "1.5.2"
+  appVersion: "1.4.2"
+
+dependsOn: []
+
+defaultValues:
+  alloy:
+    clustering:
+      enabled: false
+
+jsonSchema:
+  type: object
+  properties:
+    alloy:
+      type: object
+      title: Alloy Configuration
+      properties:
+        clustering:
+          type: object
+          title: Clustering
+          properties:
+            enabled:
+              type: boolean
+              title: Enable Clustering
+              default: false
+    controller:
+      type: object
+      title: Controller
+      properties:
+        type:
+          type: string
+          title: Controller Type
+          enum:
+            - deployment
+            - daemonset
+            - statefulset
+          default: daemonset
+        replicas:
+          type: integer
+          title: Replicas (for deployment/statefulset)
+          default: 1
+          minimum: 1
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Request
+              default: "50m"
+            memory:
+              type: string
+              title: Memory Request
+              default: "128Mi"
+
+uiSchema:
+  resources:
+    ui:collapsed: true
+  controller:
+    ui:collapsed: true

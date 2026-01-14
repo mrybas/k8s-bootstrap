@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ============================================================================
+# Helm Chart Vendoring Script
+# Downloads upstream Helm charts into local charts/<category>/<name>/charts/
+# ============================================================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHARTS_DIR="${SCRIPT_DIR}/charts"
+
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+log() { echo -e "${BLUE}[INFO]${NC} $1"; }
+ok() { echo -e "${GREEN}[OK]${NC} $1"; }
+
+vendor_chart() {
+    local name="$1"
+    local version="$2"
+    local repo="$3"
+    local category="$4"
+    
+    # New path: charts/<category>/<chart-id>/charts/<upstream-name>/
+    local dest="${CHARTS_DIR}/${category}/${name}/charts"
+    
+    # Skip if already vendored with correct version
+    if [[ -d "${dest}" ]]; then
+        # Find the actual chart directory (might have different name than wrapper)
+        local chart_dir=$(find "${dest}" -maxdepth 1 -type d -name "*.yaml" -exec dirname {} \; 2>/dev/null | head -1)
+        if [[ -z "$chart_dir" ]]; then
+            chart_dir=$(find "${dest}" -maxdepth 1 -type d ! -name "charts" 2>/dev/null | head -1)
+        fi
+        
+        if [[ -n "$chart_dir" ]] && [[ -f "${chart_dir}/Chart.yaml" ]]; then
+            local current_version=$(grep "^version:" "${chart_dir}/Chart.yaml" | awk '{print $2}' | tr -d '"')
+            if [[ "$current_version" == "$version" ]] || [[ "$current_version" == "v${version}" ]]; then
+                ok "$name@$version already vendored"
+                return 0
+            fi
+        fi
+    fi
+    
+    log "Vendoring $name@$version to ${category}/${name}..."
+    mkdir -p "$dest"
+    rm -rf "${dest}"/* 2>/dev/null || true
+    
+    if [[ "$repo" == oci://* ]]; then
+        helm pull "$repo/$name" --version "$version" --untar --untardir "$dest"
+    else
+        local repo_name=$(echo "$repo" | sed 's|https://||;s|http://||;s|/|-|g;s|\\.|-|g' | cut -c1-30)
+        helm repo add "$repo_name" "$repo" 2>/dev/null || true
+        helm repo update
+        helm pull "${repo_name}/$name" --version "$version" --untar --untardir "$dest"
+    fi
+    
+    ok "$name@$version vendored"
+}
+
+{% for chart in charts %}
+vendor_chart "{{ chart.name }}" "{{ chart.version }}" "{{ chart.repository }}" "{{ chart.category }}"
+{% endfor %}
+
+echo ""
+ok "All charts vendored successfully!"

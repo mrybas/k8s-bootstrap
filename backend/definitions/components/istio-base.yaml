@@ -1,0 +1,45 @@
+# Istio Base - CRDs and Cluster Resources
+# Hidden - auto-included when istio is selected
+
+id: istio-base
+name: Istio Base
+description: Istio CRDs and cluster-wide resources (install first)
+category: crds
+categoryName: CRDs
+categoryDescription: Custom Resource Definitions
+icon: "🔷"
+priority: 5
+hidden: true
+docsUrl: https://istio.io/latest/docs/
+
+chartType: upstream
+namespace: istio-system
+releaseName: istio-base
+createNamespace: true
+timeout: 5m
+
+upstream:
+  repository: https://istio-release.storage.googleapis.com/charts
+  chartName: base
+  version: "1.28.2"
+  appVersion: "1.24.2"
+
+dependsOn: []
+
+# Auto-included when istio meta-component is selected
+autoInclude:
+  when:
+    - istio
+
+defaultValues:
+  defaultRevision: default
+
+jsonSchema:
+  type: object
+  properties:
+    defaultRevision:
+      type: string
+      title: Default Revision
+      default: default
+
+uiSchema: {}

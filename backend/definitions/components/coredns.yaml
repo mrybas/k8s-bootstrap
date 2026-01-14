@@ -1,0 +1,123 @@
+# CoreDNS
+# Cluster DNS
+
+id: coredns
+name: CoreDNS
+description: DNS server for Kubernetes service discovery and external DNS resolution
+category: system
+categoryName: System
+categoryDescription: Core system components
+icon: "🌐"
+priority: 5
+docsUrl: https://coredns.io/manual/toc/
+
+chartType: upstream
+namespace: coredns
+releaseName: coredns
+createNamespace: true
+
+# Usually pre-installed, but can be customized
+note: "CoreDNS is typically pre-installed in most Kubernetes distributions. Use this to customize configuration."
+
+upstream:
+  repository: https://coredns.github.io/helm
+  chartName: coredns
+  version: "1.45.0"
+
+defaultValues:
+  replicaCount: 2
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  serviceType: ClusterIP
+  prometheus:
+    service:
+      enabled: false
+    monitor:
+      enabled: false
+  servers:
+    - zones:
+        - zone: .
+      port: 53
+      plugins:
+        - name: errors
+        - name: health
+          configBlock: |-
+            lameduck 5s
+        - name: ready
+        - name: kubernetes
+          parameters: cluster.local in-addr.arpa ip6.arpa
+          configBlock: |-
+            pods insecure
+            fallthrough in-addr.arpa ip6.arpa
+            ttl 30
+        - name: prometheus
+          parameters: 0.0.0.0:9153
+        - name: forward
+          parameters: . /etc/resolv.conf
+        - name: cache
+          parameters: 30
+        - name: loop
+        - name: reload
+        - name: loadbalance
+
+jsonSchema:
+  type: object
+  properties:
+    replicaCount:
+      type: integer
+      title: Replicas
+      minimum: 1
+      maximum: 10
+      default: 2
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              default: "100m"
+            memory:
+              type: string
+              default: "128Mi"
+        limits:
+          type: object
+          properties:
+            cpu:
+              type: string
+              default: "100m"
+            memory:
+              type: string
+              default: "128Mi"
+    prometheus:
+      type: object
+      title: Prometheus
+      properties:
+        monitor:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Enable ServiceMonitor
+              default: false
+    customCorefile:
+      type: string
+      title: Custom Corefile
+      description: Override the entire Corefile configuration
+
+uiSchema:
+  replicaCount:
+    ui:widget: updown
+  resources:
+    ui:collapsed: true
+  customCorefile:
+    ui:widget: textarea
+    ui:collapsed: true
+    ui:help: "Leave empty to use default Corefile"

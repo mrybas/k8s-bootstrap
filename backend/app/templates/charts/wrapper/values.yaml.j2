@@ -1,0 +1,8 @@
+# {{ name }} values
+# See upstream chart for all options
+{{ name }}:
+{% if values %}
+{{ values | to_yaml | indent(2, first=true) }}
+{% else %}
+  {}
+{% endif %}

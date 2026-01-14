@@ -1,0 +1,97 @@
+# Tailscale Operator - Kubernetes Integration
+# Auto-generated component definition
+
+id: tailscale-operator
+name: Tailscale Operator
+description: Kubernetes operator for exposing services over Tailscale VPN
+category: security
+categoryName: Security
+categoryDescription: Security, certificates, and secrets management
+icon: "🔗"
+priority: 50
+docsUrl: https://tailscale.com/kb/1236/kubernetes-operator/
+
+chartType: upstream
+namespace: tailscale
+releaseName: tailscale-operator
+createNamespace: true
+timeout: 5m
+
+upstream:
+  repository: https://pkgs.tailscale.com/helmcharts
+  chartName: tailscale-operator
+  version: "1.92.5"
+  appVersion: "1.78.3"
+
+dependsOn: []
+
+defaultValues:
+  oauth:
+    clientId: ""
+    clientSecret: ""
+
+jsonSchema:
+  type: object
+  properties:
+    oauth:
+      type: object
+      title: OAuth Credentials
+      description: Create at https://login.tailscale.com/admin/settings/keys
+      properties:
+        clientId:
+          type: string
+          title: OAuth Client ID
+          description: Required - get from Tailscale admin console
+        clientSecret:
+          type: string
+          title: OAuth Client Secret
+          description: Required - get from Tailscale admin console
+    operatorConfig:
+      type: object
+      title: Operator Configuration
+      properties:
+        hostname:
+          type: string
+          title: Hostname Prefix
+          description: Prefix for Tailscale hostnames
+          default: k8s
+        defaultTags:
+          type: array
+          title: Default Tags
+          description: Tags to apply to Tailscale devices
+          items:
+            type: string
+    proxyConfig:
+      type: object
+      title: Proxy Configuration
+      properties:
+        defaultProxyClass:
+          type: string
+          title: Default Proxy Class
+          default: default
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Request
+              default: "50m"
+            memory:
+              type: string
+              title: Memory Request
+              default: "64Mi"
+
+uiSchema:
+  oauth:
+    clientSecret:
+      ui:widget: password
+  operatorConfig:
+    ui:collapsed: true
+  proxyConfig:
+    ui:collapsed: true
+  resources:
+    ui:collapsed: true

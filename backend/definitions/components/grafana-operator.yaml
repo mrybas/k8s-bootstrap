@@ -1,0 +1,61 @@
+# Grafana Operator
+# Manages Grafana instances declaratively
+
+id: grafana-operator
+name: Grafana Operator
+description: Kubernetes operator for managing Grafana instances, dashboards, and datasources
+category: observability
+categoryName: Observability
+categoryDescription: Monitoring, logging, and observability tools
+icon: "📊"
+priority: 32
+docsUrl: https://grafana.github.io/grafana-operator/docs/
+
+# Operator pattern - suggests deploying instances
+isOperator: true
+operatorFor: grafana
+suggestsInstances:
+  - grafana-instance
+
+chartType: upstream
+namespace: grafana-operator
+releaseName: grafana-operator
+createNamespace: true
+
+upstream:
+  repository: oci://ghcr.io/grafana/helm-charts
+  chartName: grafana-operator
+  version: "5.21.4"
+
+defaultValues:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  serviceMonitor:
+    enabled: true
+
+jsonSchema:
+  type: object
+  properties:
+    watchNamespaces:
+      type: array
+      title: Watch Namespaces
+      description: Namespaces to watch for Grafana CRs (empty = all)
+      items:
+        type: string
+    serviceMonitor:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          title: Enable ServiceMonitor
+          default: true
+
+uiSchema:
+  watchNamespaces:
+    ui:widget: array
+    ui:help: "Leave empty to watch all namespaces"

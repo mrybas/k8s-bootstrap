@@ -1,0 +1,36 @@
+# Minimal test scenario
+# Tests the basic bootstrap flow with minimal components
+# Uses flux-native architecture with manifests/infrastructure/
+
+name: minimal
+description: Minimal bootstrap with cert-manager (includes auto-included cert-manager-crds)
+
+components:
+  - cert-manager
+
+# Expected results after Flux reconciliation
+expected:
+  namespaces:
+    - flux-system
+    - cert-manager
+  
+  # HelmReleases are defined in manifests/infrastructure/*.yaml
+  # Each file contains: Namespace + HelmRelease
+  helmreleases:
+    - name: cert-manager-crds  # Auto-included CRD chart
+      namespace: flux-system
+      ready: true
+    - name: cert-manager
+      namespace: flux-system
+      ready: true
+  
+  deployments:
+    - name: cert-manager
+      namespace: cert-manager
+    - name: cert-manager-webhook
+      namespace: cert-manager
+
+# Timeouts
+timeouts:
+  flux_sync: 600      # 10 minutes for full sync
+  helmrelease: 300    # 5 minutes per HelmRelease

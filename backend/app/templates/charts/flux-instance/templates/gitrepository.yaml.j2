@@ -1,0 +1,14 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: {{ '{{ .Values.gitRepository.name }}' }}
+  namespace: {{ '{{ .Release.Namespace }}' }}
+spec:
+  interval: {{ '{{ .Values.gitRepository.interval }}' }}
+  url: {{ '{{ .Values.gitRepository.url }}' }}
+  ref:
+    branch: {{ '{{ .Values.gitRepository.branch }}' }}
+  {{ '{{- if .Values.gitCredentials.enabled }}' }}
+  secretRef:
+    name: flux-git-credentials
+  {{ '{{- end }}' }}

@@ -1,0 +1,112 @@
+# Istiod - Istio Control Plane
+# Hidden - auto-included when istio is selected
+
+id: istiod
+name: Istiod
+description: Istio control plane (Pilot, Citadel, Galley combined)
+category: system
+categoryName: System
+categoryDescription: Core system components
+icon: "🔷"
+priority: 45
+hidden: true
+docsUrl: https://istio.io/latest/docs/
+
+chartType: upstream
+namespace: istio-system
+releaseName: istiod
+createNamespace: true
+timeout: 10m
+
+upstream:
+  repository: https://istio-release.storage.googleapis.com/charts
+  chartName: istiod
+  version: "1.28.2"
+  appVersion: "1.24.2"
+
+requiresCrds:
+  - istio-base
+
+dependsOn:
+  - istio-base
+
+# Auto-included when istio meta-component is selected
+autoInclude:
+  when:
+    - istio
+
+defaultValues:
+  pilot:
+    autoscaleEnabled: true
+    autoscaleMin: 1
+    autoscaleMax: 5
+
+jsonSchema:
+  type: object
+  properties:
+    pilot:
+      type: object
+      title: Pilot Configuration
+      properties:
+        autoscaleEnabled:
+          type: boolean
+          title: Enable Autoscaling
+          default: true
+        autoscaleMin:
+          type: integer
+          title: Min Replicas
+          default: 1
+          minimum: 1
+        autoscaleMax:
+          type: integer
+          title: Max Replicas
+          default: 5
+          minimum: 1
+        replicaCount:
+          type: integer
+          title: Replicas (when autoscale disabled)
+          default: 1
+          minimum: 1
+    global:
+      type: object
+      title: Global Settings
+      properties:
+        proxy:
+          type: object
+          title: Sidecar Proxy
+          properties:
+            resources:
+              type: object
+              properties:
+                requests:
+                  type: object
+                  properties:
+                    cpu:
+                      type: string
+                      title: CPU Request
+                      default: "100m"
+                    memory:
+                      type: string
+                      title: Memory Request
+                      default: "128Mi"
+    resources:
+      type: object
+      title: Istiod Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Request
+              default: "500m"
+            memory:
+              type: string
+              title: Memory Request
+              default: "2Gi"
+
+uiSchema:
+  resources:
+    ui:collapsed: true
+  global:
+    ui:collapsed: true

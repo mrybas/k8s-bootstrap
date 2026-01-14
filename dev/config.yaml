@@ -1,0 +1,29 @@
+# K8s Bootstrap - Developer Environment Configuration
+# ==================================================
+#
+# Edit values below to customize your dev setup.
+# Changes require restart: make dev-stop && make dev
+
+# Kubernetes cluster settings (for toolbox)
+cluster:
+  name: k8s-bootstrap-dev
+  workerNodes: 1
+
+# Git server settings (Gitea)
+git:
+  username: dev
+  password: dev12345
+  email: dev@localhost
+  testRepo: bootstrap-test
+
+# Service ports
+ports:
+  frontend: 3000
+  backend: 8000
+  gitea: 3030
+
+# Default values for bootstrap
+defaults:
+  repoUrl: http://gitea:3000/dev/bootstrap-test.git
+  branch: main
+  clusterName: dev-cluster

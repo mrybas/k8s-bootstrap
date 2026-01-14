@@ -1,0 +1,157 @@
+# Gitea - Lightweight Git Service
+# Auto-generated component definition
+
+id: gitea
+name: Gitea
+description: Painless self-hosted all-in-one software development service
+category: apps
+categoryName: Apps
+categoryDescription: Applications and services
+icon: "🍵"
+priority: 50
+docsUrl: https://docs.gitea.com/
+
+chartType: upstream
+namespace: gitea
+releaseName: gitea
+createNamespace: true
+timeout: 10m
+
+upstream:
+  repository: https://dl.gitea.com/charts/
+  chartName: gitea
+  version: "12.4.0"
+  appVersion: "1.22.4"
+
+dependsOn: []
+
+defaultValues:
+  replicaCount: 1
+  gitea:
+    admin:
+      username: gitea_admin
+  persistence:
+    enabled: true
+    size: 10Gi
+
+jsonSchema:
+  type: object
+  properties:
+    replicaCount:
+      type: integer
+      title: Replicas
+      default: 1
+      minimum: 1
+    gitea:
+      type: object
+      title: Gitea Configuration
+      properties:
+        admin:
+          type: object
+          title: Admin User
+          properties:
+            username:
+              type: string
+              title: Admin Username
+              default: gitea_admin
+            password:
+              type: string
+              title: Admin Password
+              description: Leave empty to auto-generate
+            email:
+              type: string
+              title: Admin Email
+              default: admin@local.domain
+        config:
+          type: object
+          title: App Configuration
+          properties:
+            server:
+              type: object
+              properties:
+                DOMAIN:
+                  type: string
+                  title: Domain
+                  default: git.local
+                ROOT_URL:
+                  type: string
+                  title: Root URL
+                  default: http://git.local
+    persistence:
+      type: object
+      title: Persistence
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Persistence
+          default: true
+        size:
+          type: string
+          title: Storage Size
+          default: 10Gi
+    ingress:
+      type: object
+      title: Ingress
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Ingress
+          default: false
+        className:
+          type: string
+          title: Ingress Class
+          default: nginx
+        hosts:
+          type: array
+          title: Hosts
+          items:
+            type: object
+            properties:
+              host:
+                type: string
+                title: Host
+              paths:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    path:
+                      type: string
+                    pathType:
+                      type: string
+    postgresql:
+      type: object
+      title: PostgreSQL
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Built-in PostgreSQL
+          default: true
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Request
+              default: "100m"
+            memory:
+              type: string
+              title: Memory Request
+              default: "256Mi"
+
+uiSchema:
+  persistence:
+    ui:collapsed: true
+  ingress:
+    ui:collapsed: true
+  postgresql:
+    ui:collapsed: true
+  resources:
+    ui:collapsed: true
+  gitea:
+    config:
+      ui:collapsed: true

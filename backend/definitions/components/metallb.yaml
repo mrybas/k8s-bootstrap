@@ -1,0 +1,73 @@
+id: metallb
+name: MetalLB
+description: Load balancer for bare-metal Kubernetes clusters
+category: ingress
+categoryName: Ingress
+categoryDescription: Ingress controllers and load balancers
+icon: ⚖️
+priority: 21
+docsUrl: https://metallb.universe.tf/
+
+# metallb-config is auto-included when metallb is selected
+
+chartType: upstream
+namespace: metallb-system
+releaseName: metallb
+createNamespace: true
+upstream:
+  repository: https://metallb.github.io/metallb
+  chartName: metallb
+  version: 0.15.3
+defaultValues:
+  controller:
+    enabled: true
+    image:
+      repository: quay.io/metallb/controller
+      tag: null
+      pullPolicy: null
+    serviceAccount:
+      create: true
+      name: ''
+      annotations: {}
+  speaker:
+    enabled: true
+    frr:
+      enabled: false
+    image:
+      repository: quay.io/metallb/speaker
+      tag: null
+      pullPolicy: null
+    serviceAccount:
+      create: true
+      name: ''
+      annotations: {}
+    tolerateMaster: true
+jsonSchema:
+  type: object
+  properties:
+    controller:
+      type: object
+      title: Controller
+      properties:
+        enabled:
+          type: boolean
+          default: true
+    speaker:
+      type: object
+      title: Speaker
+      properties:
+        enabled:
+          type: boolean
+          default: true
+        frr:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Enable FRR (BGP)
+              default: false
+uiSchema:
+  speaker:
+    frr:
+      enabled:
+        ui:help: Enable for BGP mode, disable for Layer 2 mode

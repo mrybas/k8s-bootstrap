@@ -1,0 +1,20 @@
+# Kustomization for {{ category_name }} releases
+# Watches manifests/releases/{{ category_name }}/ and applies HelmReleases
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: releases-{{ category_name }}
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  path: ./manifests/releases/{{ category_name }}
+  prune: true
+  wait: true
+  dependsOn:
+    - name: {{ depends_on }}

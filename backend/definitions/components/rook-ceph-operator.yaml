@@ -1,0 +1,98 @@
+# Rook Ceph Operator - Storage Orchestration
+# Auto-generated component definition
+
+id: rook-ceph-operator
+name: Rook Ceph Operator
+description: Cloud-native storage orchestrator for Kubernetes, providing Ceph storage
+category: storage
+categoryName: Storage
+categoryDescription: Storage, backups, and data management
+icon: "🐙"
+priority: 40
+isOperator: true
+docsUrl: https://rook.io/docs/rook/latest/Getting-Started/intro/
+
+chartType: upstream
+namespace: rook-ceph
+releaseName: rook-ceph
+createNamespace: true
+timeout: 10m
+
+upstream:
+  repository: https://charts.rook.io/release
+  chartName: rook-ceph
+  version: "v1.18.9"
+  appVersion: "1.16.0"
+
+suggestsInstances:
+  - rook-ceph-cluster
+
+dependsOn: []
+
+defaultValues:
+  crds:
+    enabled: true
+  csi:
+    enableRbdDriver: true
+    enableCephfsDriver: true
+
+jsonSchema:
+  type: object
+  properties:
+    crds:
+      type: object
+      title: CRDs
+      properties:
+        enabled:
+          type: boolean
+          title: Install CRDs
+          default: true
+    csi:
+      type: object
+      title: CSI Drivers
+      properties:
+        enableRbdDriver:
+          type: boolean
+          title: Enable RBD Driver
+          description: Block storage driver
+          default: true
+        enableCephfsDriver:
+          type: boolean
+          title: Enable CephFS Driver
+          description: Filesystem storage driver
+          default: true
+        enableNFSDriver:
+          type: boolean
+          title: Enable NFS Driver
+          default: false
+    monitoring:
+      type: object
+      title: Monitoring
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Prometheus Metrics
+          default: false
+    resources:
+      type: object
+      title: Operator Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Request
+              default: "100m"
+            memory:
+              type: string
+              title: Memory Request
+              default: "128Mi"
+
+uiSchema:
+  csi:
+    ui:collapsed: true
+  monitoring:
+    ui:collapsed: true
+  resources:
+    ui:collapsed: true
