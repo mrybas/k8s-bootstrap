@@ -1,0 +1,71 @@
+# Component Categories
+# ====================
+#
+# Categories define the folder structure and deployment order.
+# Lower priority = deployed first.
+#
+# Structure:
+#   charts/<category>/<component>/
+#   manifests/releases/<category>/<component>.yaml
+#
+
+categories:
+  core:
+    name: Core
+    icon: "🎯"
+    description: Flux and core infrastructure (deployed first)
+    priority: 10
+
+  crds:
+    name: CRDs
+    icon: "📋"
+    description: Custom Resource Definitions (before components that use them)
+    priority: 20
+
+  system:
+    name: System
+    icon: "⚙️"
+    description: Core system components (metrics, dns, etc.)
+    priority: 30
+
+  ingress:
+    name: Ingress
+    icon: "🌐"
+    description: Ingress controllers and load balancers
+    priority: 40
+
+  security:
+    name: Security
+    icon: "🔐"
+    description: Security, certificates and secrets management
+    priority: 50
+
+  storage:
+    name: Storage
+    icon: "💾"
+    description: Storage solutions
+    priority: 60
+
+  backup:
+    name: Backup
+    icon: "🛟"
+    description: Backup and disaster recovery
+    priority: 65
+
+  observability:
+    name: Observability
+    icon: "📊"
+    description: Monitoring, logging and tracing
+    priority: 70
+
+  gitops:
+    name: GitOps
+    icon: "🔄"
+    description: GitOps and deployment tools
+    priority: 80
+
+  apps:
+    name: Apps
+    icon: "📦"
+    description: Application deployments
+    priority: 100

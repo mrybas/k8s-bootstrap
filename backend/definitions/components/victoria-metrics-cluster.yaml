@@ -1,0 +1,121 @@
+# Victoria Metrics Cluster
+# Highly available and scalable metrics storage
+
+id: victoria-metrics-cluster
+name: Victoria Metrics Cluster
+description: Horizontally scalable time series database for high-availability deployments
+category: observability
+categoryName: Observability
+categoryDescription: Monitoring, logging and tracing
+icon: "📊"
+priority: 54
+docsUrl: https://docs.victoriametrics.com/cluster-victoriametrics/
+
+chartType: upstream
+namespace: victoria-metrics
+releaseName: vmcluster
+createNamespace: true
+timeout: 10m
+
+upstream:
+  repository: https://victoriametrics.github.io/helm-charts/
+  chartName: victoria-metrics-cluster
+  version: "0.32.0"
+  appVersion: "v1.106.1"
+
+dependsOn:
+  - victoria-metrics-operator
+
+isInstance: true
+instanceOf: victoria-metrics-operator
+
+defaultValues:
+  vmselect:
+    replicaCount: 2
+  vminsert:
+    replicaCount: 2
+  vmstorage:
+    replicaCount: 2
+
+jsonSchema:
+  type: object
+  properties:
+    vmselect:
+      type: object
+      title: VMSelect (Query)
+      properties:
+        replicaCount:
+          type: integer
+          title: Replicas
+          minimum: 1
+          default: 2
+        resources:
+          type: object
+          title: Resources
+          properties:
+            requests:
+              type: object
+              properties:
+                cpu:
+                  type: string
+                  default: "100m"
+                memory:
+                  type: string
+                  default: "256Mi"
+    vminsert:
+      type: object
+      title: VMInsert (Ingestion)
+      properties:
+        replicaCount:
+          type: integer
+          title: Replicas
+          minimum: 1
+          default: 2
+        resources:
+          type: object
+          title: Resources
+          properties:
+            requests:
+              type: object
+              properties:
+                cpu:
+                  type: string
+                  default: "100m"
+                memory:
+                  type: string
+                  default: "256Mi"
+    vmstorage:
+      type: object
+      title: VMStorage
+      properties:
+        replicaCount:
+          type: integer
+          title: Replicas
+          minimum: 1
+          default: 2
+        retentionPeriod:
+          type: string
+          title: Retention Period
+          default: "14d"
+        persistentVolume:
+          type: object
+          title: Storage
+          properties:
+            enabled:
+              type: boolean
+              default: true
+            size:
+              type: string
+              title: Size
+              default: "10Gi"
+
+uiSchema:
+  vmselect:
+    resources:
+      ui:collapsed: true
+  vminsert:
+    resources:
+      ui:collapsed: true
+  vmstorage:
+    resources:
+      ui:collapsed: true

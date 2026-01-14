@@ -1,0 +1,236 @@
+id: velero
+name: Velero
+description: Backup and disaster recovery for Kubernetes clusters and persistent volumes
+category: backup
+categoryName: Backup
+categoryDescription: Backup and disaster recovery
+icon: 🛟
+priority: 60
+docsUrl: https://velero.io/docs/
+chartType: upstream
+namespace: velero
+releaseName: velero
+createNamespace: true
+upstream:
+  repository: https://vmware-tanzu.github.io/helm-charts
+  chartName: velero
+  version: 11.3.2
+defaultValues:
+  initContainers: []
+  configuration:
+    backupStorageLocation:
+    - name: default
+      provider: ''
+      bucket: ''
+      config: {}
+    volumeSnapshotLocation:
+    - name: default
+      provider: ''
+  credentials:
+    useSecret: true
+  serviceMonitor:
+    enabled: false
+  image:
+    repository: velero/velero
+    tag: v1.17.1
+    pullPolicy: IfNotPresent
+    imagePullSecrets: []
+  upgradeCRDsJob:
+    extraVolumes: []
+    extraVolumeMounts: []
+    extraEnvVars: []
+    automountServiceAccountToken: true
+  dnsPolicy: ClusterFirst
+  metrics:
+    enabled: true
+    scrapeInterval: 30s
+    scrapeTimeout: 10s
+    service:
+      type: ClusterIP
+      nodePort: null
+      externalTrafficPolicy: ''
+      internalTrafficPolicy: ''
+      ipFamilyPolicy: ''
+      ipFamilies: []
+    podAnnotations:
+      prometheus.io/scrape: 'true'
+      prometheus.io/port: '8085'
+      prometheus.io/path: /metrics
+    serviceMonitor:
+      autodetect: true
+      enabled: false
+    nodeAgentPodMonitor:
+      autodetect: true
+      enabled: false
+    prometheusRule:
+      autodetect: true
+      enabled: false
+      spec: []
+  kubectl:
+    image:
+      repository: docker.io/bitnamilegacy/kubectl
+    extraVolumes: []
+    extraVolumeMounts: []
+  rbac:
+    create: true
+    clusterAdministrator: true
+    clusterAdministratorName: cluster-admin
+  serviceAccount:
+    server:
+      create: true
+      name: null
+      annotations: null
+      labels: null
+      imagePullSecrets: []
+      automountServiceAccountToken: true
+  configMaps: {}
+jsonSchema:
+  type: object
+  properties:
+    configuration:
+      type: object
+      title: Configuration
+      properties:
+        provider:
+          type: string
+          title: Cloud Provider
+          enum:
+          - aws
+          - gcp
+          - azure
+          - ''
+        backupStorageLocation:
+          type: array
+          title: Backup Storage Location
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                default: default
+              provider:
+                type: string
+                enum:
+                - aws
+                - gcp
+                - azure
+              bucket:
+                type: string
+                title: Bucket Name
+              prefix:
+                type: string
+                title: Prefix
+              config:
+                type: object
+                title: Provider Config
+                properties:
+                  region:
+                    type: string
+                    title: Region
+                  s3ForcePathStyle:
+                    type: boolean
+                    title: S3 Force Path Style
+                  s3Url:
+                    type: string
+                    title: S3 URL (MinIO)
+    credentials:
+      type: object
+      title: Credentials
+      properties:
+        useSecret:
+          type: boolean
+          title: Use Credentials Secret
+          default: true
+        existingSecret:
+          type: string
+          title: Existing Secret
+        secretContents:
+          type: object
+          title: Secret Contents
+          properties:
+            cloud:
+              type: string
+              title: Cloud Credentials
+    schedules:
+      type: object
+      title: Backup Schedules
+      additionalProperties:
+        type: object
+        properties:
+          schedule:
+            type: string
+            title: Cron Schedule
+          template:
+            type: object
+            properties:
+              ttl:
+                type: string
+              includedNamespaces:
+                type: array
+                items:
+                  type: string
+    initContainers:
+      type: array
+      title: Plugin Init Containers
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+          image:
+            type: string
+          volumeMounts:
+            type: array
+            items:
+              type: object
+    serviceMonitor:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          title: Enable ServiceMonitor
+          default: false
+uiSchema:
+  configuration:
+    provider:
+      ui:widget: select
+      ui:placeholder: Select cloud provider
+    backupStorageLocation:
+      items:
+        bucket:
+          ui:placeholder: my-velero-bucket
+        config:
+          ui:collapsed: true
+          region:
+            ui:placeholder: us-east-1
+          s3Url:
+            ui:placeholder: https://minio.example.com
+            ui:help: For MinIO or S3-compatible storage
+  credentials:
+    secretContents:
+      cloud:
+        ui:widget: textarea
+        ui:placeholder: '[default]
+
+          aws_access_key_id=...
+
+          aws_secret_access_key=...
+
+          '
+    existingSecret:
+      ui:help: If set, secretContents is ignored
+  schedules:
+    ui:collapsed: true
+    ui:help: "Example schedule:\ndaily-backup:\n  schedule: \"0 2 * * *\"\n  template:\n\
+      \    ttl: \"168h\"\n    includedNamespaces: [\"*\"]\n"
+  initContainers:
+    ui:collapsed: true
+    ui:help: 'Common plugins:
+
+      - velero/velero-plugin-for-aws:v1.9.0
+
+      - velero/velero-plugin-for-gcp:v1.9.0
+
+      - velero/velero-plugin-for-microsoft-azure:v1.9.0
+
+      '

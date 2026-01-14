@@ -1,0 +1,104 @@
+# Loki Stack
+# Log aggregation
+
+id: loki-stack
+name: Loki Stack
+description: Log aggregation system - like Prometheus, but for logs
+category: observability
+categoryName: Observability
+categoryDescription: Monitoring, logging, and observability tools
+icon: "📜"
+priority: 35
+docsUrl: https://grafana.com/docs/loki/latest/
+
+chartType: upstream
+namespace: loki
+releaseName: loki-stack
+createNamespace: true
+
+upstream:
+  repository: https://grafana.github.io/helm-charts
+  chartName: loki-stack
+  version: "2.10.3"
+
+defaultValues:
+  loki:
+    enabled: true
+    persistence:
+      enabled: false
+      size: 10Gi
+  promtail:
+    enabled: true
+  grafana:
+    enabled: false  # Use existing Grafana
+  prometheus:
+    enabled: false
+
+jsonSchema:
+  type: object
+  properties:
+    loki:
+      type: object
+      title: Loki
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Loki
+          default: true
+        persistence:
+          type: object
+          title: Persistence
+          properties:
+            enabled:
+              type: boolean
+              title: Enable Persistence
+              default: false
+            size:
+              type: string
+              title: Storage Size
+              default: "10Gi"
+            storageClassName:
+              type: string
+              title: Storage Class
+        config:
+          type: object
+          title: Config
+          properties:
+            limits_config:
+              type: object
+              properties:
+                retention_period:
+                  type: string
+                  title: Retention Period
+                  default: "168h"
+    promtail:
+      type: object
+      title: Promtail
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Promtail
+          default: true
+    grafana:
+      type: object
+      title: Grafana
+      properties:
+        enabled:
+          type: boolean
+          title: Deploy Grafana
+          description: Disable if using external Grafana
+          default: false
+
+uiSchema:
+  loki:
+    persistence:
+      storageClassName:
+        ui:placeholder: "Leave empty for default"
+    config:
+      ui:collapsed: true
+      limits_config:
+        retention_period:
+          ui:placeholder: "168h (7 days)"
+  grafana:
+    enabled:
+      ui:help: "Disable this if you're using Grafana Operator or kube-prometheus-stack"

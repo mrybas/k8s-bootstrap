@@ -1,0 +1,74 @@
+# K8s Bootstrap - Developer Toolbox
+# ==================================
+#
+# Container with all tools needed for development:
+# - kind (Kubernetes in Docker)
+# - kubectl
+# - helm
+# - git
+# - curl, jq, etc.
+#
+
+FROM docker:24-dind
+
+# Install tools
+RUN apk add --no-cache \
+    bash \
+    curl \
+    git \
+    jq \
+    yq \
+    openssh-client \
+    ca-certificates \
+    python3 \
+    py3-pip \
+    py3-yaml \
+    && rm -rf /var/cache/apk/*
+
+# Install kubectl
+ARG KUBECTL_VERSION=v1.32.0
+RUN curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
+    && chmod +x kubectl \
+    && mv kubectl /usr/local/bin/
+
+# Install helm
+ARG HELM_VERSION=v3.14.0
+RUN curl -fsSL https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz | tar xzf - \
+    && mv linux-amd64/helm /usr/local/bin/ \
+    && rm -rf linux-amd64
+
+# Install kind
+ARG KIND_VERSION=v0.27.0
+RUN curl -Lo /usr/local/bin/kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64" \
+    && chmod +x /usr/local/bin/kind
+
+# Install age (for SOPS encryption)
+ARG AGE_VERSION=v1.1.1
+RUN curl -fsSL "https://github.com/FiloSottile/age/releases/download/${AGE_VERSION}/age-${AGE_VERSION}-linux-amd64.tar.gz" | tar xz \
+    && mv age/age age/age-keygen /usr/local/bin/ \
+    && rm -rf age
+
+# Install SOPS
+ARG SOPS_VERSION=v3.8.1
+RUN curl -fsSL -o /usr/local/bin/sops "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.amd64" \
+    && chmod +x /usr/local/bin/sops
+
+# Install flux CLI (optional, for debugging)
+RUN curl -s https://fluxcd.io/install.sh | bash || true
+
+# Create workspace directory
+RUN mkdir -p /workspace/.kube
+
+# Configure git defaults (can be overridden by env vars in entrypoint)
+RUN git config --global user.email "dev@localhost" \
+    && git config --global user.name "dev" \
+    && git config --global init.defaultBranch main
+
+# Copy helper scripts
+COPY toolbox-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+WORKDIR /workspace
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["bash"]

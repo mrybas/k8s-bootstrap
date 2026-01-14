@@ -1,0 +1,62 @@
+# Flux Instance
+# Custom chart that creates FluxInstance CR + GitRepository + Kustomizations
+
+id: flux-instance
+name: Flux Instance
+description: Flux CD instance with GitOps configuration
+category: core
+categoryName: Core
+categoryDescription: Flux and core infrastructure
+icon: "🌀"
+priority: 2  # After flux-operator
+docsUrl: https://fluxcd.io/flux/
+
+# System component - always included, hidden from UI
+hidden: true
+alwaysInclude: true
+
+chartType: custom
+namespace: flux-system
+releaseName: flux-instance
+createNamespace: false
+
+dependsOn:
+  - flux-operator
+
+# Installed via bootstrap.sh, not via Flux HelmRelease
+bootstrapInstall: true
+bootstrapOrder: 2
+
+defaultValues:
+  distribution:
+    version: "2.x"
+    registry: "ghcr.io/fluxcd"
+  components:
+    source: true
+    kustomize: true
+    helm: true
+    notification: true
+    imageAutomation: false
+
+templates:
+  flux-instance.yaml: |
+    apiVersion: fluxcd.controlplane.io/v1
+    kind: FluxInstance
+    metadata:
+      name: flux
+      namespace: flux-system
+    spec:
+      distribution:
+        version: {{ .Values.distribution.version | quote }}
+        registry: {{ .Values.distribution.registry | quote }}
+      components:
+        - source-controller
+        - kustomize-controller
+        - helm-controller
+        - notification-controller
+        {{- if .Values.components.imageAutomation }}
+        - image-reflector-controller
+        - image-automation-controller
+        {{- end }}
+      cluster:
+        type: kubernetes

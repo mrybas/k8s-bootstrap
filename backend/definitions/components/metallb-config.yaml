@@ -1,0 +1,140 @@
+# MetalLB Configuration
+# IP address pools and L2/BGP advertisements
+
+id: metallb-config
+name: MetalLB Configuration
+description: Configure IP address pools and advertisements for MetalLB
+category: ingress
+categoryName: Ingress
+icon: "📋"
+priority: 22
+docsUrl: https://metallb.universe.tf/configuration/
+
+# Requires metallb to be selected first
+requiresOperator: metallb
+
+chartType: custom
+namespace: metallb-system
+releaseName: metallb-config
+createNamespace: false
+
+dependsOn:
+  - metallb
+
+defaultValues:
+  ipAddressPools:
+    - name: default
+      addresses:
+        - "192.168.1.240-192.168.1.250"
+  l2Advertisements:
+    - name: default
+      ipAddressPools:
+        - default
+  bgpAdvertisements: []
+
+jsonSchema:
+  type: object
+  properties:
+    ipAddressPools:
+      type: array
+      title: IP Address Pools
+      items:
+        type: object
+        required: [name, addresses]
+        properties:
+          name:
+            type: string
+            title: Pool Name
+          addresses:
+            type: array
+            title: Address Ranges
+            items:
+              type: string
+          autoAssign:
+            type: boolean
+            title: Auto Assign
+            default: true
+    l2Advertisements:
+      type: array
+      title: L2 Advertisements
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+          ipAddressPools:
+            type: array
+            items:
+              type: string
+    bgpAdvertisements:
+      type: array
+      title: BGP Advertisements
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+          ipAddressPools:
+            type: array
+            items:
+              type: string
+          peers:
+            type: array
+            items:
+              type: string
+
+uiSchema:
+  ipAddressPools:
+    items:
+      addresses:
+        ui:widget: array
+        ui:placeholder: "192.168.1.240-192.168.1.250 or 192.168.1.0/24"
+  l2Advertisements:
+    ui:help: "Use for Layer 2 mode (ARP/NDP)"
+  bgpAdvertisements:
+    ui:collapsed: true
+    ui:help: "Use for BGP mode"
+
+templates:
+  ipaddresspools.yaml: |
+    {{- range .Values.ipAddressPools }}
+    ---
+    apiVersion: metallb.io/v1beta1
+    kind: IPAddressPool
+    metadata:
+      name: {{ .name }}
+    spec:
+      addresses:
+        {{- range .addresses }}
+        - {{ . }}
+        {{- end }}
+      {{- if hasKey . "autoAssign" }}
+      autoAssign: {{ .autoAssign }}
+      {{- end }}
+    {{- end }}
+  l2advertisements.yaml: |
+    {{- range .Values.l2Advertisements }}
+    ---
+    apiVersion: metallb.io/v1beta1
+    kind: L2Advertisement
+    metadata:
+      name: {{ .name }}
+    spec:
+      ipAddressPools:
+        {{- range .ipAddressPools }}
+        - {{ . }}
+        {{- end }}
+    {{- end }}
+  bgpadvertisements.yaml: |
+    {{- range .Values.bgpAdvertisements }}
+    ---
+    apiVersion: metallb.io/v1beta1
+    kind: BGPAdvertisement
+    metadata:
+      name: {{ .name }}
+    spec:
+      ipAddressPools:
+        {{- range .ipAddressPools }}
+        - {{ . }}
+        {{- end }}
+    {{- end }}

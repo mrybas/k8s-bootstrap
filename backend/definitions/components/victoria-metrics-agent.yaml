@@ -1,0 +1,97 @@
+# Victoria Metrics Agent
+# Lightweight metrics collector that supports Prometheus scraping
+
+id: victoria-metrics-agent
+name: Victoria Metrics Agent
+description: Lightweight metrics scraping agent compatible with Prometheus, designed for high-cardinality data collection
+category: observability
+categoryName: Observability
+categoryDescription: Monitoring, logging and tracing
+icon: "📈"
+priority: 55
+docsUrl: https://docs.victoriametrics.com/vmagent/
+
+chartType: upstream
+namespace: victoria-metrics
+releaseName: vmagent
+createNamespace: true
+timeout: 5m
+
+upstream:
+  repository: https://victoriametrics.github.io/helm-charts/
+  chartName: victoria-metrics-agent
+  version: "0.29.0"
+  appVersion: "v1.106.1"
+
+dependsOn:
+  - victoria-metrics-operator
+
+isInstance: true
+instanceOf: victoria-metrics-operator
+
+defaultValues:
+  replicaCount: 1
+  # At least one remoteWrite endpoint is required
+  remoteWrite:
+    - url: http://victoria-metrics-single:8428/api/v1/write
+
+jsonSchema:
+  type: object
+  properties:
+    replicaCount:
+      type: integer
+      title: Replicas
+      description: Number of agent replicas
+      minimum: 1
+      default: 1
+    remoteWrite:
+      type: array
+      title: Remote Write Endpoints
+      description: Endpoints to send metrics to
+      items:
+        type: object
+        properties:
+          url:
+            type: string
+            title: URL
+    extraArgs:
+      type: object
+      title: Extra Arguments
+      description: Additional command line arguments
+      additionalProperties: true
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Request
+              default: "100m"
+            memory:
+              type: string
+              title: Memory Request
+              default: "128Mi"
+        limits:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Limit
+              default: "500m"
+            memory:
+              type: string
+              title: Memory Limit
+              default: "512Mi"
+
+uiSchema:
+  replicaCount:
+    ui:widget: updown
+  remoteWrite:
+    ui:widget: array
+  extraArgs:
+    ui:collapsed: true
+  resources:
+    ui:collapsed: true

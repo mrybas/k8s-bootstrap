@@ -1,0 +1,155 @@
+# Victoria Metrics Single Instance
+# Single-node deployment for small to medium clusters
+
+id: victoria-metrics-single
+name: Victoria Metrics (Single)
+description: Single-node VictoriaMetrics - deploy multiple in different namespaces
+category: observability
+categoryName: Observability
+icon: "📉"
+priority: 34
+docsUrl: https://docs.victoriametrics.com/operator/resources/vmsingle/
+
+# Multi-instance - can deploy multiple instances in different namespaces
+multiInstance: true
+requiresOperator: victoria-metrics-operator
+
+chartType: custom
+namespace: victoria-metrics
+releaseName: vmsingle
+createNamespace: false
+
+dependsOn:
+  - victoria-metrics-operator
+  - prometheus-operator-crds
+
+defaultValues:
+  retentionPeriod: "14d"
+  storage:
+    enabled: true
+    size: 50Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+  scrapeConfig:
+    enabled: true
+
+jsonSchema:
+  type: object
+  properties:
+    retentionPeriod:
+      type: string
+      title: Retention Period
+      description: How long to keep metrics
+      enum: ["7d", "14d", "30d", "60d", "90d", "180d", "365d"]
+      default: "14d"
+    storage:
+      type: object
+      title: Storage
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Persistent Storage
+          default: true
+        size:
+          type: string
+          title: Storage Size
+          default: "50Gi"
+        storageClass:
+          type: string
+          title: Storage Class
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              default: "250m"
+            memory:
+              type: string
+              default: "512Mi"
+        limits:
+          type: object
+          properties:
+            cpu:
+              type: string
+              default: "2000m"
+            memory:
+              type: string
+              default: "4Gi"
+    scrapeConfig:
+      type: object
+      title: Scrape Configuration
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Default Scrape Config
+          description: Scrape kubelet, kube-state-metrics, node-exporter
+          default: true
+
+uiSchema:
+  retentionPeriod:
+    ui:widget: select
+  storage:
+    storageClass:
+      ui:placeholder: "Leave empty for default"
+  resources:
+    ui:collapsed: true
+
+templates:
+  vmsingle.yaml: |
+    apiVersion: operator.victoriametrics.com/v1beta1
+    kind: VMSingle
+    metadata:
+      name: vmsingle
+    spec:
+      retentionPeriod: {{ .Values.retentionPeriod | quote }}
+      {{- if .Values.storage.enabled }}
+      storage:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.storage.size }}
+        {{- if .Values.storage.storageClass }}
+        storageClassName: {{ .Values.storage.storageClass }}
+        {{- end }}
+      {{- end }}
+      resources:
+        requests:
+          cpu: {{ .Values.resources.requests.cpu }}
+          memory: {{ .Values.resources.requests.memory }}
+        limits:
+          cpu: {{ .Values.resources.limits.cpu }}
+          memory: {{ .Values.resources.limits.memory }}
+      extraArgs:
+        dedup.minScrapeInterval: "30s"
+  vmservicescrape.yaml: |
+    {{- if .Values.scrapeConfig.enabled }}
+    ---
+    apiVersion: operator.victoriametrics.com/v1beta1
+    kind: VMServiceScrape
+    metadata:
+      name: kubelet
+    spec:
+      jobLabel: kubelet
+      namespaceSelector:
+        matchNames:
+          - kube-system
+      selector:
+        matchLabels:
+          k8s-app: kubelet
+      endpoints:
+        - port: https-metrics
+          scheme: https
+          tlsConfig:
+            insecureSkipVerify: true
+    {{- end }}

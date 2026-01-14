@@ -1,0 +1,143 @@
+# Cert-Manager Component Definition
+# Upstream Helm chart wrapper
+
+id: cert-manager
+name: cert-manager
+description: Automatically provision and manage TLS certificates in Kubernetes
+category: security
+categoryName: Security
+categoryDescription: Security and certificate management
+icon: "🔐"
+priority: 10
+docsUrl: https://cert-manager.io/docs/
+
+chartType: upstream
+namespace: cert-manager
+releaseName: cert-manager
+createNamespace: true
+timeout: 10m
+
+# Auto-include CRD chart and issuers
+requiresCrds:
+  - cert-manager-crds
+suggestsComponents:
+  - cert-manager-issuers
+
+# Upstream chart details
+upstream:
+  repository: https://charts.jetstack.io
+  chartName: cert-manager
+  version: "v1.19.2"
+  appVersion: "1.14.3"
+
+# Dependencies
+dependsOn:
+  - namespaces
+  - cert-manager-crds
+
+# Default values - CRDs handled by separate chart
+defaultValues:
+  installCRDs: false
+  replicaCount: 1
+  prometheus:
+    enabled: true
+    servicemonitor:
+      enabled: false
+  webhook:
+    replicaCount: 1
+  cainjector:
+    replicaCount: 1
+
+# JSON Schema for UI form
+jsonSchema:
+  type: object
+  properties:
+    installCRDs:
+      type: boolean
+      title: Install CRDs
+      description: Install cert-manager CRDs
+      default: true
+    replicaCount:
+      type: integer
+      title: Controller Replicas
+      description: Number of cert-manager controller replicas
+      minimum: 1
+      maximum: 10
+      default: 1
+    prometheus:
+      type: object
+      title: Prometheus Integration
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Prometheus metrics
+          default: true
+        servicemonitor:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Create ServiceMonitor
+              description: Create ServiceMonitor for Prometheus Operator
+              default: false
+    webhook:
+      type: object
+      title: Webhook
+      properties:
+        replicaCount:
+          type: integer
+          title: Webhook Replicas
+          minimum: 1
+          maximum: 5
+          default: 1
+    cainjector:
+      type: object
+      title: CA Injector
+      properties:
+        replicaCount:
+          type: integer
+          title: CA Injector Replicas
+          minimum: 1
+          maximum: 5
+          default: 1
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Request
+              default: "50m"
+            memory:
+              type: string
+              title: Memory Request
+              default: "128Mi"
+        limits:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Limit
+              default: "200m"
+            memory:
+              type: string
+              title: Memory Limit
+              default: "256Mi"
+
+# UI Schema
+uiSchema:
+  installCRDs:
+    ui:help: "Required for first installation"
+  replicaCount:
+    ui:widget: updown
+  prometheus:
+    servicemonitor:
+      enabled:
+        ui:help: "Requires Prometheus Operator to be installed"
+  resources:
+    ui:collapsed: true
+    ui:options:
+      label: "Resource Settings"

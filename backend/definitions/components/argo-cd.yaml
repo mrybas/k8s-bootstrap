@@ -1,0 +1,120 @@
+# Argo CD - GitOps Continuous Delivery
+# Auto-generated component definition
+
+id: argo-cd
+name: Argo CD
+description: Declarative, GitOps continuous delivery tool for Kubernetes
+category: gitops
+categoryName: GitOps
+categoryDescription: GitOps tools and continuous delivery
+icon: "🐙"
+priority: 40
+docsUrl: https://argo-cd.readthedocs.io/
+
+chartType: upstream
+namespace: argocd
+releaseName: argo-cd
+createNamespace: true
+timeout: 10m
+
+upstream:
+  repository: https://argoproj.github.io/argo-helm
+  chartName: argo-cd
+  version: "9.3.3"
+  appVersion: "2.13.2"
+
+dependsOn: []
+
+defaultValues:
+  global:
+    domain: argocd.local
+  server:
+    replicas: 1
+  controller:
+    replicas: 1
+  repoServer:
+    replicas: 1
+
+jsonSchema:
+  type: object
+  properties:
+    global:
+      type: object
+      title: Global Settings
+      properties:
+        domain:
+          type: string
+          title: Domain
+          description: Domain for Argo CD UI
+          default: argocd.local
+    server:
+      type: object
+      title: API Server
+      properties:
+        replicas:
+          type: integer
+          title: Replicas
+          default: 1
+          minimum: 1
+        ingress:
+          type: object
+          title: Ingress
+          properties:
+            enabled:
+              type: boolean
+              title: Enable Ingress
+              default: false
+            ingressClassName:
+              type: string
+              title: Ingress Class
+              default: nginx
+    controller:
+      type: object
+      title: Application Controller
+      properties:
+        replicas:
+          type: integer
+          title: Replicas
+          default: 1
+          minimum: 1
+    repoServer:
+      type: object
+      title: Repository Server
+      properties:
+        replicas:
+          type: integer
+          title: Replicas
+          default: 1
+          minimum: 1
+    redis:
+      type: object
+      title: Redis
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Built-in Redis
+          default: true
+    configs:
+      type: object
+      title: Configuration
+      properties:
+        secret:
+          type: object
+          properties:
+            argocdServerAdminPassword:
+              type: string
+              title: Admin Password (bcrypt hash)
+              description: Leave empty to auto-generate
+
+uiSchema:
+  server:
+    ingress:
+      ui:collapsed: true
+  controller:
+    ui:collapsed: true
+  repoServer:
+    ui:collapsed: true
+  redis:
+    ui:collapsed: true
+  configs:
+    ui:collapsed: true

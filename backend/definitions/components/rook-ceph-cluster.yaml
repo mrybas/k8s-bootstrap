@@ -1,0 +1,150 @@
+# Rook Ceph Cluster - Ceph Storage Instance
+# Auto-generated component definition
+
+id: rook-ceph-cluster
+name: Rook Ceph Cluster
+description: Deploy a Ceph storage cluster managed by Rook operator
+category: storage
+categoryName: Storage
+categoryDescription: Storage, backups, and data management
+icon: "💾"
+priority: 50
+docsUrl: https://rook.io/docs/rook/latest/CRDs/Cluster/ceph-cluster-crd/
+
+# Multi-instance - can deploy multiple Ceph clusters
+multiInstance: true
+requiresOperator: rook-ceph-operator
+
+chartType: upstream
+namespace: rook-ceph
+releaseName: rook-ceph-cluster
+createNamespace: false
+timeout: 15m
+
+upstream:
+  repository: https://charts.rook.io/release
+  chartName: rook-ceph-cluster
+  version: "v1.18.9"
+  appVersion: "1.16.0"
+
+dependsOn:
+  - rook-ceph-operator
+
+defaultValues:
+  operatorNamespace: rook-ceph
+  cephClusterSpec:
+    mon:
+      count: 3
+    mgr:
+      count: 2
+    dashboard:
+      enabled: true
+  cephBlockPools:
+    - name: ceph-blockpool
+      spec:
+        replicated:
+          size: 3
+      storageClass:
+        enabled: true
+        name: ceph-block
+        isDefault: true
+
+jsonSchema:
+  type: object
+  properties:
+    cephClusterSpec:
+      type: object
+      title: Ceph Cluster Configuration
+      properties:
+        mon:
+          type: object
+          title: Monitors
+          properties:
+            count:
+              type: integer
+              title: Monitor Count
+              description: Odd number recommended (1, 3, 5)
+              default: 3
+              minimum: 1
+        mgr:
+          type: object
+          title: Managers
+          properties:
+            count:
+              type: integer
+              title: Manager Count
+              default: 2
+              minimum: 1
+        dashboard:
+          type: object
+          title: Dashboard
+          properties:
+            enabled:
+              type: boolean
+              title: Enable Ceph Dashboard
+              default: true
+            ssl:
+              type: boolean
+              title: Enable SSL
+              default: true
+        storage:
+          type: object
+          title: Storage
+          properties:
+            useAllNodes:
+              type: boolean
+              title: Use All Nodes
+              default: true
+            useAllDevices:
+              type: boolean
+              title: Use All Devices
+              description: Use all available devices on nodes
+              default: true
+    cephBlockPools:
+      type: array
+      title: Block Pools
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+            title: Pool Name
+          spec:
+            type: object
+            properties:
+              replicated:
+                type: object
+                properties:
+                  size:
+                    type: integer
+                    title: Replication Size
+                    default: 3
+    cephFileSystems:
+      type: array
+      title: File Systems
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+            title: Filesystem Name
+    cephObjectStores:
+      type: array
+      title: Object Stores (S3)
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+            title: Object Store Name
+
+uiSchema:
+  cephBlockPools:
+    ui:collapsed: true
+  cephFileSystems:
+    ui:collapsed: true
+  cephObjectStores:
+    ui:collapsed: true
+  cephClusterSpec:
+    storage:
+      ui:collapsed: true

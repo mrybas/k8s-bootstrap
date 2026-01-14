@@ -1,0 +1,95 @@
+# Grafana Mimir - Scalable Long-Term Metrics Storage
+# Auto-generated component definition
+
+id: mimir
+name: Grafana Mimir
+description: Horizontally scalable, highly available, multi-tenant metrics storage
+category: observability
+categoryName: Observability
+categoryDescription: Monitoring, logging, tracing, and alerting
+icon: "📊"
+priority: 50
+docsUrl: https://grafana.com/docs/mimir/latest/
+
+chartType: upstream
+namespace: mimir
+releaseName: mimir
+createNamespace: true
+timeout: 15m
+
+upstream:
+  repository: https://grafana.github.io/helm-charts
+  chartName: mimir-distributed
+  version: "6.0.5"
+  appVersion: "2.14.0"
+
+dependsOn: []
+
+defaultValues:
+  minio:
+    enabled: true
+
+jsonSchema:
+  type: object
+  properties:
+    minio:
+      type: object
+      title: MinIO (Object Storage)
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Built-in MinIO
+          description: Use built-in MinIO for object storage
+          default: true
+    ingester:
+      type: object
+      title: Ingester
+      properties:
+        replicas:
+          type: integer
+          title: Replicas
+          default: 2
+          minimum: 1
+    distributor:
+      type: object
+      title: Distributor
+      properties:
+        replicas:
+          type: integer
+          title: Replicas
+          default: 1
+          minimum: 1
+    querier:
+      type: object
+      title: Querier
+      properties:
+        replicas:
+          type: integer
+          title: Replicas
+          default: 1
+          minimum: 1
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Request
+              default: "100m"
+            memory:
+              type: string
+              title: Memory Request
+              default: "512Mi"
+
+uiSchema:
+  resources:
+    ui:collapsed: true
+  ingester:
+    ui:collapsed: true
+  distributor:
+    ui:collapsed: true
+  querier:
+    ui:collapsed: true

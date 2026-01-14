@@ -1,0 +1,62 @@
+# Istio Service Mesh
+# Meta-component that includes all Istio components
+
+id: istio
+name: Istio Service Mesh
+description: Complete Istio service mesh with control plane, CRDs, and ingress gateway
+category: ingress
+categoryName: Ingress
+categoryDescription: Ingress controllers and load balancers
+icon: "🔷"
+priority: 40
+docsUrl: https://istio.io/latest/docs/
+
+# This is a meta-component - it doesn't install anything directly
+# but triggers auto-inclusion of istio-base, istiod, and istio-gateway
+chartType: meta
+
+# Meta-components don't have upstream charts
+# They just trigger autoInclude of other components
+
+jsonSchema:
+  type: object
+  properties:
+    gateway:
+      type: object
+      title: Gateway Configuration
+      properties:
+        replicaCount:
+          type: integer
+          title: Gateway Replicas
+          default: 1
+          minimum: 1
+        serviceType:
+          type: string
+          title: Service Type
+          enum:
+            - ClusterIP
+            - NodePort
+            - LoadBalancer
+          default: LoadBalancer
+    pilot:
+      type: object
+      title: Control Plane (Istiod)
+      properties:
+        autoscaleEnabled:
+          type: boolean
+          title: Enable Autoscaling
+          default: true
+        autoscaleMin:
+          type: integer
+          title: Min Replicas
+          default: 1
+        autoscaleMax:
+          type: integer
+          title: Max Replicas
+          default: 5
+
+uiSchema:
+  gateway:
+    ui:collapsed: false
+  pilot:
+    ui:collapsed: true

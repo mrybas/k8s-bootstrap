@@ -1,0 +1,99 @@
+# Istio Gateway - Ingress/Egress Gateway
+# Hidden - auto-included when istio is selected
+
+id: istio-gateway
+name: Istio Gateway
+description: Istio ingress and egress gateway for traffic management
+category: ingress
+categoryName: Ingress
+categoryDescription: Ingress controllers and load balancers
+icon: "🌐"
+priority: 50
+hidden: true
+docsUrl: https://istio.io/latest/docs/tasks/traffic-management/ingress/
+
+chartType: upstream
+namespace: istio-ingress
+releaseName: istio-gateway
+createNamespace: true
+timeout: 5m
+
+upstream:
+  repository: https://istio-release.storage.googleapis.com/charts
+  chartName: gateway
+  version: "1.28.2"
+  appVersion: "1.24.2"
+
+requiresCrds:
+  - istio-base
+
+dependsOn:
+  - istiod
+
+# Auto-included when istio meta-component is selected
+autoInclude:
+  when:
+    - istio
+
+defaultValues:
+  replicaCount: 1
+  service:
+    type: LoadBalancer
+
+jsonSchema:
+  type: object
+  properties:
+    replicaCount:
+      type: integer
+      title: Replicas
+      default: 1
+      minimum: 1
+    autoscaling:
+      type: object
+      title: Autoscaling
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Autoscaling
+          default: false
+        minReplicas:
+          type: integer
+          title: Min Replicas
+          default: 1
+        maxReplicas:
+          type: integer
+          title: Max Replicas
+          default: 5
+    service:
+      type: object
+      title: Service Configuration
+      properties:
+        type:
+          type: string
+          title: Service Type
+          enum:
+            - ClusterIP
+            - NodePort
+            - LoadBalancer
+          default: LoadBalancer
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Request
+              default: "100m"
+            memory:
+              type: string
+              title: Memory Request
+              default: "128Mi"
+
+uiSchema:
+  resources:
+    ui:collapsed: true
+  autoscaling:
+    ui:collapsed: true

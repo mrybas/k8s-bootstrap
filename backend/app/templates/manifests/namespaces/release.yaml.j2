@@ -1,0 +1,29 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: namespaces
+  namespace: flux-system
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: ./charts/core/namespaces
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      interval: 12h
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+  upgrade:
+    force: true  # Force to adopt existing namespaces
+    remediation:
+      retries: 3
+  values:
+    namespaces:
+{% for ns in namespaces %}
+      - name: {{ ns.name }}
+{% endfor %}

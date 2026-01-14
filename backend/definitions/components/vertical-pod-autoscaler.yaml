@@ -1,0 +1,98 @@
+# Vertical Pod Autoscaler
+# Auto-adjusts pod resources
+
+id: vertical-pod-autoscaler
+name: Vertical Pod Autoscaler (VPA)
+description: Automatically adjusts CPU and memory requests for pods
+category: system
+categoryName: System
+categoryDescription: Core system components
+icon: "📊"
+priority: 7
+docsUrl: https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler
+
+chartType: upstream
+namespace: vpa
+releaseName: vpa
+createNamespace: true
+
+upstream:
+  repository: https://charts.fairwinds.com/stable
+  chartName: vpa
+  version: "4.10.1"
+
+defaultValues:
+  recommender:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 500Mi
+  updater:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 500Mi
+  admissionController:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 200Mi
+
+jsonSchema:
+  type: object
+  properties:
+    recommender:
+      type: object
+      title: Recommender
+      description: Provides resource recommendations
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Recommender
+          default: true
+        resources:
+          type: object
+          properties:
+            requests:
+              type: object
+              properties:
+                cpu:
+                  type: string
+                  default: "50m"
+                memory:
+                  type: string
+                  default: "500Mi"
+    updater:
+      type: object
+      title: Updater
+      description: Evicts pods for updates
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Updater
+          default: true
+    admissionController:
+      type: object
+      title: Admission Controller
+      description: Sets resources on pod creation
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Admission Controller
+          default: true
+
+uiSchema:
+  recommender:
+    enabled:
+      ui:help: "Monitors resource usage and provides recommendations"
+    resources:
+      ui:collapsed: true
+  updater:
+    enabled:
+      ui:help: "Evicts pods that need resource updates (can cause restarts)"
+  admissionController:
+    enabled:
+      ui:help: "Applies recommendations to new pods"

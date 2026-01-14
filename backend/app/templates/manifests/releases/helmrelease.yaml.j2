@@ -1,0 +1,41 @@
+# HelmRelease for {{ name }}
+# Category: {{ category }}
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: {{ name }}
+  namespace: {{ namespace }}
+spec:
+  interval: 30m
+  timeout: {{ timeout | default('10m') }}
+  releaseName: {{ release_name | default(name) }}
+  install:
+    crds: CreateReplace
+    createNamespace: false
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: ./charts/{{ category }}/{{ chart_name | default(name) }}
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      interval: 12h
+{% if depends_on %}
+  dependsOn:
+{% for dep in depends_on %}
+    - name: {{ dep.name }}
+{% if dep.namespace %}
+      namespace: {{ dep.namespace }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if values %}
+  values:
+{{ values | to_yaml | indent(4, first=true) }}
+{% endif %}

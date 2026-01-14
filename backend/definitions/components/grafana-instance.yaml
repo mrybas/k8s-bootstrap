@@ -1,0 +1,251 @@
+# Grafana Instance
+# Deploys Grafana instances using Grafana Operator
+
+id: grafana-instance
+name: Grafana Instance
+description: Deploy multiple Grafana instances in different namespaces
+category: observability
+categoryName: Observability
+icon: "📈"
+priority: 33
+docsUrl: https://grafana.github.io/grafana-operator/docs/grafana/
+
+# Multi-instance - can deploy multiple instances in different namespaces
+multiInstance: true
+requiresOperator: grafana-operator
+
+chartType: custom
+namespace: monitoring
+releaseName: grafana
+createNamespace: true
+
+dependsOn:
+  - grafana-operator
+  - prometheus-operator-crds
+
+defaultValues:
+  name: grafana
+  adminCredentials:
+    existingSecret: ""
+    adminUser: admin
+    adminPassword: admin
+  ingress:
+    enabled: false
+    host: ""
+    tls: false
+  persistence:
+    enabled: false
+    size: 10Gi
+  datasources:
+    prometheus:
+      enabled: true
+      url: "http://prometheus-operated.monitoring.svc:9090"
+    loki:
+      enabled: false
+      url: "http://loki.monitoring.svc:3100"
+
+jsonSchema:
+  type: object
+  properties:
+    name:
+      type: string
+      title: Instance Name
+      default: grafana
+    adminCredentials:
+      type: object
+      title: Admin Credentials
+      properties:
+        existingSecret:
+          type: string
+          title: Existing Secret
+          description: "Name of existing secret (keys: admin-user, admin-password)"
+        adminUser:
+          type: string
+          title: Admin Username
+          default: admin
+        adminPassword:
+          type: string
+          title: Admin Password
+          default: admin
+    ingress:
+      type: object
+      title: Ingress
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Ingress
+          default: false
+        host:
+          type: string
+          title: Hostname
+        tls:
+          type: boolean
+          title: Enable TLS
+          default: false
+        clusterIssuer:
+          type: string
+          title: ClusterIssuer
+          default: letsencrypt-production
+    persistence:
+      type: object
+      title: Persistence
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Persistence
+          default: false
+        size:
+          type: string
+          title: Storage Size
+          default: 10Gi
+        storageClass:
+          type: string
+          title: Storage Class
+    datasources:
+      type: object
+      title: Datasources
+      properties:
+        prometheus:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Enable Prometheus
+              default: true
+            url:
+              type: string
+              title: Prometheus URL
+              default: "http://prometheus-operated.monitoring.svc:9090"
+        loki:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Enable Loki
+              default: false
+            url:
+              type: string
+              title: Loki URL
+              default: "http://loki.monitoring.svc:3100"
+
+uiSchema:
+  adminCredentials:
+    adminPassword:
+      ui:widget: password
+    existingSecret:
+      ui:help: "If set, adminUser and adminPassword are ignored"
+  ingress:
+    host:
+      ui:placeholder: "grafana.example.com"
+    ui:collapsed: true
+  persistence:
+    ui:collapsed: true
+
+templates:
+  grafana.yaml: |
+    apiVersion: grafana.integreatly.org/v1beta1
+    kind: Grafana
+    metadata:
+      name: {{ .Values.name }}
+      labels:
+        dashboards: {{ .Values.name }}
+    spec:
+      {{- if .Values.adminCredentials.existingSecret }}
+      deployment:
+        spec:
+          template:
+            spec:
+              containers:
+                - name: grafana
+                  env:
+                    - name: GF_SECURITY_ADMIN_USER
+                      valueFrom:
+                        secretKeyRef:
+                          name: {{ .Values.adminCredentials.existingSecret }}
+                          key: admin-user
+                    - name: GF_SECURITY_ADMIN_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                          name: {{ .Values.adminCredentials.existingSecret }}
+                          key: admin-password
+      {{- else }}
+      config:
+        security:
+          admin_user: {{ .Values.adminCredentials.adminUser }}
+          admin_password: {{ .Values.adminCredentials.adminPassword }}
+      {{- end }}
+      {{- if .Values.persistence.enabled }}
+      persistentVolumeClaim:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: {{ .Values.persistence.size }}
+          {{- if .Values.persistence.storageClass }}
+          storageClassName: {{ .Values.persistence.storageClass }}
+          {{- end }}
+      {{- end }}
+      {{- if .Values.ingress.enabled }}
+      ingress:
+        metadata:
+          annotations:
+            {{- if .Values.ingress.tls }}
+            cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer | default "letsencrypt-production" }}
+            {{- end }}
+        spec:
+          ingressClassName: nginx
+          rules:
+            - host: {{ .Values.ingress.host }}
+              http:
+                paths:
+                  - backend:
+                      service:
+                        name: {{ .Values.name }}-service
+                        port:
+                          number: 3000
+                    path: /
+                    pathType: Prefix
+          {{- if .Values.ingress.tls }}
+          tls:
+            - hosts:
+                - {{ .Values.ingress.host }}
+              secretName: {{ .Values.name }}-tls
+          {{- end }}
+      {{- end }}
+  datasources.yaml: |
+    {{- if .Values.datasources.prometheus.enabled }}
+    ---
+    apiVersion: grafana.integreatly.org/v1beta1
+    kind: GrafanaDatasource
+    metadata:
+      name: prometheus
+    spec:
+      instanceSelector:
+        matchLabels:
+          dashboards: {{ .Values.name }}
+      datasource:
+        name: Prometheus
+        type: prometheus
+        access: proxy
+        url: {{ .Values.datasources.prometheus.url }}
+        isDefault: true
+        editable: false
+    {{- end }}
+    {{- if .Values.datasources.loki.enabled }}
+    ---
+    apiVersion: grafana.integreatly.org/v1beta1
+    kind: GrafanaDatasource
+    metadata:
+      name: loki
+    spec:
+      instanceSelector:
+        matchLabels:
+          dashboards: {{ .Values.name }}
+      datasource:
+        name: Loki
+        type: loki
+        access: proxy
+        url: {{ .Values.datasources.loki.url }}
+        editable: false
+    {{- end }}

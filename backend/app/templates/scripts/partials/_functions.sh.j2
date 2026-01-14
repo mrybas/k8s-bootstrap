@@ -1,0 +1,282 @@
+check_deps() {
+    log "Checking dependencies..."
+    for cmd in kubectl helm git; do
+        command -v $cmd &>/dev/null || err "$cmd required"
+    done
+    kctl cluster-info &>/dev/null || err "Cannot connect to cluster"
+    ok "Dependencies OK"
+}
+
+vendor_charts() {
+    log "Checking if charts need vendoring..."
+    
+    # Check flux-operator (new path: charts/core/flux-operator)
+    if [[ -d "${CHARTS_DIR}/core/flux-operator/charts/flux-operator" ]]; then
+        ok "flux-operator already vendored"
+    else
+        log "Vendoring flux-operator..."
+        mkdir -p "${CHARTS_DIR}/core/flux-operator/charts"
+        helm pull oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator \
+            --version {{ flux_operator_version }} \
+            --untar \
+            --untardir "${CHARTS_DIR}/core/flux-operator/charts" || err "Failed to vendor flux-operator"
+        ok "flux-operator vendored"
+    fi
+    
+    # Run vendor-charts.sh if exists
+    [[ -f "${SCRIPT_DIR}/vendor-charts.sh" ]] && bash "${SCRIPT_DIR}/vendor-charts.sh"
+}
+
+setup_age() {
+    log "Setting up Age encryption key..."
+    mkdir -p "${AGE_KEY_DIR}"
+    
+    if [[ ! -f "${AGE_KEY}" ]]; then
+        if command -v age-keygen &>/dev/null; then
+            age-keygen -o "${AGE_KEY}" 2>&1 | tee "${AGE_KEY_DIR}/key.pub"
+            chmod 600 "${AGE_KEY}"
+            ok "Age key generated"
+        else
+            warn "age-keygen not found - install age for encryption support"
+            return 1
+        fi
+    else
+        ok "Age key exists"
+    fi
+    
+    # Update .sops.yaml with actual public key
+    local age_pub=$(grep "public key:" "${AGE_KEY}" | cut -d: -f2 | tr -d " ")
+    if [[ -n "$age_pub" ]] && [[ -f "${SCRIPT_DIR}/.sops.yaml" ]]; then
+        sed -i.bak "s/AGE_PUBLIC_KEY/$age_pub/g" "${SCRIPT_DIR}/.sops.yaml" && rm -f "${SCRIPT_DIR}/.sops.yaml.bak"
+    fi
+}
+
+get_credentials() {
+    if [[ "$AUTH_TYPE" == "none" ]]; then
+        return 0
+    fi
+    
+    if [[ "$AUTH_TYPE" == "ssh" ]]; then
+        get_ssh_credentials
+    else
+        get_https_credentials
+    fi
+}
+
+get_ssh_credentials() {
+    local ssh_key="${HOME}/.ssh/flux-${CLUSTER_NAME}"
+    
+    if [[ ! -f "$ssh_key" ]]; then
+        log "Generating SSH key..."
+        ssh-keygen -t ed25519 -f "$ssh_key" -N "" -C "flux-${CLUSTER_NAME}"
+    fi
+    
+    echo ""
+    warn "════════════════════════════════════════════════════════════"
+    warn "ADD THIS DEPLOY KEY TO YOUR GIT REPOSITORY:"
+    warn "════════════════════════════════════════════════════════════"
+    cat "${ssh_key}.pub"
+    echo ""
+    read -p "Press Enter after adding the key..."
+    
+    SSH_KEY="$ssh_key"
+    export SSH_KEY
+}
+
+get_https_credentials() {
+    # Fall back to GITEA_USER/GITEA_PASS for dev environment
+    [[ -z "$GIT_USERNAME" ]] && [[ -n "$GITEA_USER" ]] && GIT_USERNAME="$GITEA_USER"
+    [[ -z "$GIT_TOKEN" ]] && [[ -n "$GITEA_PASS" ]] && GIT_TOKEN="$GITEA_PASS"
+    
+    case "$GIT_PLATFORM" in
+        github)
+            log "GitHub: Using Personal Access Token"
+            [[ -z "$GIT_USERNAME" ]] && GIT_USERNAME="git"
+            ;;
+        gitlab)
+            log "GitLab: Using PAT or Deploy Token"
+            [[ -z "$GIT_USERNAME" ]] && { read -p "GitLab username (default: oauth2): " GIT_USERNAME; GIT_USERNAME="${GIT_USERNAME:-oauth2}"; }
+            ;;
+        gitea)
+            log "Gitea: Using Access Token"
+            [[ -z "$GIT_USERNAME" ]] && { read -p "Gitea username: " GIT_USERNAME; [[ -z "$GIT_USERNAME" ]] && err "Username required"; }
+            ;;
+    esac
+    
+    if [[ -z "$GIT_TOKEN" ]]; then
+        echo -n "Enter token (hidden): "
+        read -s GIT_TOKEN
+        echo ""
+        [[ -z "$GIT_TOKEN" ]] && err "Token required"
+    fi
+}
+
+install_flux_operator() {
+    log "Installing Flux Operator..."
+    hlm upgrade --install flux-operator "${CHARTS_DIR}/core/flux-operator" \
+        -n ${FLUX_NS} --create-namespace --wait --timeout 5m
+    ok "Flux Operator installed"
+    
+    log "Waiting for FluxInstance CRD..."
+    kctl wait --for=condition=Established crd/fluxinstances.fluxcd.controlplane.io --timeout=60s
+}
+
+create_flux_instance() {
+    log "Creating FluxInstance CR (deploys Flux controllers)..."
+    
+    cat <<FLUXEOF | kctl apply -f -
+apiVersion: fluxcd.controlplane.io/v1
+kind: FluxInstance
+metadata:
+  name: flux
+  namespace: ${FLUX_NS}
+spec:
+  distribution:
+    version: "2.x"
+    registry: ghcr.io/fluxcd
+  components:
+    - source-controller
+    - kustomize-controller
+    - helm-controller
+    - notification-controller
+  cluster:
+    type: kubernetes
+    multitenant: false
+    networkPolicy: true
+FLUXEOF
+    ok "FluxInstance created"
+    
+    log "Waiting for Flux controllers to start..."
+    sleep 10
+    for deploy in source-controller helm-controller kustomize-controller; do
+        kctl rollout status deployment/$deploy -n ${FLUX_NS} --timeout=180s 2>/dev/null || true
+    done
+    ok "Flux controllers running"
+    
+    log "Waiting for Flux CRDs..."
+    for crd in gitrepositories.source.toolkit.fluxcd.io kustomizations.kustomize.toolkit.fluxcd.io helmreleases.helm.toolkit.fluxcd.io; do
+        kctl wait --for=condition=Established crd/$crd --timeout=120s 2>/dev/null || warn "CRD $crd not ready"
+    done
+    ok "Flux CRDs ready"
+}
+
+create_sops_age_secret() {
+    if [[ "$AUTH_TYPE" == "none" ]]; then
+        return 0
+    fi
+    
+    if [[ ! -f "${AGE_KEY}" ]]; then
+        warn "Age key not found - skipping sops-age secret"
+        return 0
+    fi
+    
+    log "Creating sops-age secret in cluster..."
+    kctl create namespace ${FLUX_NS} 2>/dev/null || true
+    kctl delete secret sops-age -n ${FLUX_NS} 2>/dev/null || true
+    kctl create secret generic sops-age \
+        --namespace=${FLUX_NS} \
+        --from-file=age.agekey="${AGE_KEY}"
+    ok "sops-age secret created"
+}
+
+setup_git() {
+    log "Setting up Git repository..."
+    cd "${SCRIPT_DIR}"
+    
+    if [[ ! -d .git ]]; then
+        git init
+        git add -A
+        git commit -m "Initial k8s-bootstrap setup"
+        ok "Git repository initialized"
+    fi
+    
+    git remote get-url origin &>/dev/null || git remote add origin "$REPO_URL"
+}
+
+push_to_remote() {
+    log "Pushing to remote repository..."
+    cd "${SCRIPT_DIR}"
+    
+    git add -A
+    git commit -m "Bootstrap configuration" 2>/dev/null || true
+    
+    if [[ "$REPO_URL" == http* ]]; then
+        local push_user="${GIT_USERNAME:-${GITEA_USER:-}}"
+        local push_pass="${GIT_TOKEN:-${GITEA_PASS:-}}"
+        
+        if [[ -n "$push_user" ]] && [[ -n "$push_pass" ]]; then
+            log "Using credentials for git push..."
+            local auth_url=$(echo "$REPO_URL" | sed "s|http://|http://${push_user}:${push_pass}@|" | sed "s|https://|https://${push_user}:${push_pass}@|")
+            git remote set-url origin "$auth_url"
+            git pull --rebase origin "$BRANCH" 2>/dev/null || true
+            git push -u origin "$BRANCH" || { warn "Push failed"; return 1; }
+            git remote set-url origin "$REPO_URL"
+            ok "Pushed to remote"
+        else
+            warn "Git push requires authentication."
+            warn "Set GIT_USERNAME/GIT_TOKEN or GITEA_USER/GITEA_PASS"
+            warn "Or push manually: git push -u origin $BRANCH"
+            return 1
+        fi
+    else
+        git pull --rebase origin "$BRANCH" 2>/dev/null || true
+        git push -u origin "$BRANCH" || { warn "Push manually: git push -u origin $BRANCH"; return 1; }
+        ok "Pushed to remote"
+    fi
+}
+
+install_namespaces_chart() {
+    log "Installing namespaces chart (creates all required namespaces)..."
+    
+    # New path: charts/core/namespaces
+    if [[ -d "${CHARTS_DIR}/core/namespaces" ]]; then
+        hlm upgrade --install namespaces "${CHARTS_DIR}/core/namespaces" \
+            -n ${FLUX_NS} --create-namespace \
+            --wait --timeout 2m
+        ok "namespaces chart installed"
+    else
+        warn "No namespaces chart found - skipping"
+    fi
+}
+
+install_flux_gitops() {
+    log "Installing flux-instance chart (creates GitRepository)..."
+    
+    local values_file="${SCRIPT_DIR}/.flux-instance-values.yaml"
+    
+    # New path: charts/core/flux-instance
+    hlm upgrade --install flux-instance "${CHARTS_DIR}/core/flux-instance" \
+        -n ${FLUX_NS} \
+        -f "$values_file" \
+        --wait --timeout 5m
+    
+    # Clean up temporary values file (contains credentials)
+    rm -f "$values_file"
+    
+    ok "flux-instance chart installed"
+    
+    log "Waiting for GitRepository to be ready..."
+    sleep 5
+    kctl wait --for=condition=Ready gitrepository/flux-system -n ${FLUX_NS} --timeout=120s || warn "GitRepository not ready yet"
+    
+    # Apply static Kustomizations from manifests/kustomizations/
+    log "Applying Kustomizations from manifests/kustomizations/..."
+    local kust_dir="${SCRIPT_DIR}/manifests/kustomizations"
+    
+    if [[ -d "$kust_dir" ]]; then
+        # Apply all Kustomization files (sorted by filename for proper order)
+        for kust_file in $(ls -1 "$kust_dir"/*.yaml 2>/dev/null | sort); do
+            log "Applying $(basename $kust_file)..."
+            kctl apply -f "$kust_file"
+        done
+        ok "Kustomizations applied"
+    else
+        warn "No kustomizations directory found at $kust_dir"
+    fi
+}
+
+show_status() {
+    echo ""
+    log "=== Flux Status ==="
+    kctl get gitrepositories,kustomizations,helmreleases -n ${FLUX_NS} 2>/dev/null || true
+}

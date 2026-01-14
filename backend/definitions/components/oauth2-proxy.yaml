@@ -1,0 +1,108 @@
+# OAuth2 Proxy
+# SSO authentication for services
+
+id: oauth2-proxy
+name: OAuth2 Proxy
+description: Reverse proxy for authentication with OAuth2 providers (Google, GitHub, etc.)
+category: security
+categoryName: Security
+categoryDescription: Security and certificate management
+icon: "🛡️"
+priority: 18
+docsUrl: https://oauth2-proxy.github.io/oauth2-proxy/
+
+chartType: upstream
+namespace: oauth2-proxy
+releaseName: oauth2-proxy
+createNamespace: true
+
+upstream:
+  repository: https://oauth2-proxy.github.io/manifests
+  chartName: oauth2-proxy
+  version: "10.0.0"
+
+defaultValues:
+  config:
+    clientID: ""
+    clientSecret: ""
+    cookieSecret: ""
+  extraArgs:
+    provider: google
+    email-domain: "*"
+    upstream: "static://200"
+  ingress:
+    enabled: false
+
+jsonSchema:
+  type: object
+  required:
+    - config
+  properties:
+    config:
+      type: object
+      title: OAuth2 Configuration
+      required:
+        - clientID
+        - clientSecret
+      properties:
+        clientID:
+          type: string
+          title: Client ID
+          description: OAuth2 Client ID
+        clientSecret:
+          type: string
+          title: Client Secret
+          description: OAuth2 Client Secret
+        cookieSecret:
+          type: string
+          title: Cookie Secret
+          description: "Secret for cookie encryption (generate with: openssl rand -base64 32)"
+        existingSecret:
+          type: string
+          title: Existing Secret
+          description: Name of existing secret with keys client-id, client-secret, cookie-secret
+    extraArgs:
+      type: object
+      title: Provider Settings
+      properties:
+        provider:
+          type: string
+          title: OAuth Provider
+          enum: [google, github, azure, gitlab, keycloak, oidc]
+          default: google
+        email-domain:
+          type: string
+          title: Allowed Email Domains
+          description: Comma-separated list or * for all
+          default: "*"
+    ingress:
+      type: object
+      title: Ingress
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Ingress
+          default: false
+        hosts:
+          type: array
+          title: Hosts
+          items:
+            type: string
+
+uiSchema:
+  config:
+    clientSecret:
+      ui:widget: password
+    cookieSecret:
+      ui:widget: password
+    existingSecret:
+      ui:help: "If set, clientID, clientSecret, cookieSecret are ignored"
+  extraArgs:
+    provider:
+      ui:widget: select
+    email-domain:
+      ui:placeholder: "example.com or * for all"
+  ingress:
+    ui:collapsed: true
+    hosts:
+      ui:widget: array

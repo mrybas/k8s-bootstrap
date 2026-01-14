@@ -1,0 +1,34 @@
+# Cert-Manager CRDs
+# Hidden chart - auto-included when cert-manager is selected
+
+id: cert-manager-crds
+name: Cert-Manager CRDs
+description: Custom Resource Definitions for cert-manager (Certificate, Issuer, ClusterIssuer, etc.)
+category: crds
+categoryName: CRDs
+categoryDescription: Custom Resource Definitions
+icon: "📋"
+priority: 2
+docsUrl: https://cert-manager.io/docs/
+
+# Hidden from UI - auto-included when cert-manager is selected
+hidden: true
+autoInclude:
+  when:
+    - cert-manager
+
+chartType: upstream
+namespace: cluster-crds
+releaseName: cert-manager-crds
+createNamespace: false  # Created by repo_generator for all CRDs
+
+upstream:
+  repository: https://charts.jetstack.io
+  chartName: cert-manager
+  version: "v1.19.2"
+
+# Only install CRDs, not the controller
+defaultValues:
+  installCRDs: true
+# Note: This is a workaround - ideally use a dedicated CRDs-only chart
+# The cert-manager chart with only CRDs enabled

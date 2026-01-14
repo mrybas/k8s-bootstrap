@@ -1,0 +1,76 @@
+# Grafana Pyroscope - Continuous Profiling
+# Auto-generated component definition
+
+id: pyroscope
+name: Grafana Pyroscope
+description: Horizontally-scalable, highly-available, multi-tenant continuous profiling aggregation system
+category: observability
+categoryName: Observability
+categoryDescription: Monitoring, logging, tracing, and alerting
+icon: "🔬"
+priority: 50
+docsUrl: https://grafana.com/docs/pyroscope/latest/
+
+chartType: upstream
+namespace: pyroscope
+releaseName: pyroscope
+createNamespace: true
+timeout: 10m
+
+upstream:
+  repository: https://grafana.github.io/helm-charts
+  chartName: pyroscope
+  version: "1.17.0"
+  appVersion: "1.9.0"
+
+dependsOn: []
+
+defaultValues:
+  pyroscope:
+    replicaCount: 1
+
+jsonSchema:
+  type: object
+  properties:
+    pyroscope:
+      type: object
+      title: Pyroscope Configuration
+      properties:
+        replicaCount:
+          type: integer
+          title: Replicas
+          default: 1
+          minimum: 1
+    persistence:
+      type: object
+      title: Persistence
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Persistence
+          default: false
+        size:
+          type: string
+          title: Storage Size
+          default: "10Gi"
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Request
+              default: "100m"
+            memory:
+              type: string
+              title: Memory Request
+              default: "512Mi"
+
+uiSchema:
+  resources:
+    ui:collapsed: true
+  persistence:
+    ui:collapsed: true

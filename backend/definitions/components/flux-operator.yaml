@@ -1,0 +1,39 @@
+id: flux-operator
+name: Flux Operator
+description: Kubernetes operator for managing Flux CD instances
+category: core
+categoryName: Core
+categoryDescription: Flux and core infrastructure
+icon: 🎯
+priority: 1
+docsUrl: https://fluxcd.io/flux/operator/
+hidden: true
+alwaysInclude: true
+chartType: upstream
+namespace: flux-system
+releaseName: flux-operator
+createNamespace: true
+upstream:
+  repository: oci://ghcr.io/controlplaneio-fluxcd/charts
+  chartName: flux-operator
+  version: 0.38.1
+bootstrapInstall: true
+bootstrapOrder: 1
+defaultValues:
+  hostNetwork: false
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  securityContext:
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    seccompProfile:
+      type: RuntimeDefault

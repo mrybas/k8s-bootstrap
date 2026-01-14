@@ -1,0 +1,117 @@
+# Metrics Server Component Definition
+# Upstream Helm chart wrapper
+
+id: metrics-server
+name: Metrics Server
+description: Scalable, efficient source of container resource metrics for Kubernetes
+category: system
+categoryName: System
+categoryDescription: Core system components
+icon: "📈"
+priority: 5
+docsUrl: https://github.com/kubernetes-sigs/metrics-server
+
+chartType: upstream
+namespace: metrics-server
+releaseName: metrics-server
+createNamespace: true
+timeout: 5m
+
+# Upstream chart details
+upstream:
+  repository: https://kubernetes-sigs.github.io/metrics-server/
+  chartName: metrics-server
+  version: "3.13.0"
+  appVersion: "0.7.0"
+
+# Dependencies
+dependsOn: []
+
+# Default values
+defaultValues:
+  replicas: 1
+  args:
+    - --kubelet-insecure-tls
+  metrics:
+    enabled: false
+  serviceMonitor:
+    enabled: false
+
+# JSON Schema for UI form
+jsonSchema:
+  type: object
+  properties:
+    replicas:
+      type: integer
+      title: Replicas
+      description: Number of metrics-server replicas
+      minimum: 1
+      maximum: 5
+      default: 1
+    args:
+      type: array
+      title: Additional Arguments
+      description: Additional arguments for metrics-server
+      items:
+        type: string
+      default:
+        - "--kubelet-insecure-tls"
+    metrics:
+      type: object
+      title: Metrics
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Prometheus Metrics
+          default: false
+    serviceMonitor:
+      type: object
+      title: ServiceMonitor
+      properties:
+        enabled:
+          type: boolean
+          title: Create ServiceMonitor
+          description: Requires Prometheus Operator
+          default: false
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Request
+              default: "50m"
+            memory:
+              type: string
+              title: Memory Request
+              default: "64Mi"
+        limits:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Limit
+              default: "100m"
+            memory:
+              type: string
+              title: Memory Limit
+              default: "128Mi"
+
+# UI Schema
+uiSchema:
+  replicas:
+    ui:widget: updown
+  args:
+    ui:widget: array
+    ui:help: "Common args: --kubelet-insecure-tls, --kubelet-preferred-address-types=InternalIP"
+    items:
+      ui:placeholder: "--arg=value"
+  metrics:
+    ui:collapsed: true
+  serviceMonitor:
+    ui:collapsed: true
+  resources:
+    ui:collapsed: true

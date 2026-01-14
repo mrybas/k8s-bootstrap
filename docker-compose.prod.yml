@@ -1,0 +1,63 @@
+# Production Docker Compose
+# ========================
+# This file is used for production deployment.
+# Variables are set via .env file during deployment.
+#
+# Required environment variables:
+#   DOMAIN          - Your domain (e.g., k8s-bootstrap.io)
+#   GITHUB_REPOSITORY - GitHub repo (e.g., username/k8s-bootstrap)
+#   VERSION         - Image version (commit SHA or tag)
+#
+# Prerequisites:
+#   - nginx-proxy network must exist (run nginx-proxy separately)
+#   - See deployment docs for nginx-proxy setup
+
+version: '3.8'
+
+services:
+  frontend:
+    image: ghcr.io/${GITHUB_REPOSITORY}/frontend:${VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      - BACKEND_URL=http://backend:8000
+      # nginx-proxy configuration
+      - VIRTUAL_HOST=${DOMAIN}
+      - VIRTUAL_PORT=3000
+      - LETSENCRYPT_HOST=${DOMAIN}
+    depends_on:
+      - backend
+    networks:
+      - nginx-proxy
+      - internal
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  backend:
+    image: ghcr.io/${GITHUB_REPOSITORY}/backend:${VERSION:-latest}
+    restart: unless-stopped
+    volumes:
+      - backend_data:/app/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8000/api/categories"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+networks:
+  # External network created by nginx-proxy
+  nginx-proxy:
+    external: true
+  # Internal network for frontend-backend communication
+  internal:
+    driver: bridge
+
+volumes:
+  backend_data:
+    driver: local

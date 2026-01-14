@@ -1,0 +1,98 @@
+# Cluster Autoscaler
+# Auto-scales cluster nodes
+
+id: cluster-autoscaler
+name: Cluster Autoscaler
+description: Automatically scales cluster nodes based on pod resource requests
+category: system
+categoryName: System
+categoryDescription: Core system components
+icon: "🔄"
+priority: 8
+docsUrl: https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler
+
+chartType: upstream
+namespace: cluster-autoscaler
+releaseName: cluster-autoscaler
+createNamespace: true
+
+upstream:
+  repository: https://kubernetes.github.io/autoscaler
+  chartName: cluster-autoscaler
+  version: "9.54.1"
+
+defaultValues:
+  cloudProvider: ""
+  autoDiscovery:
+    clusterName: ""
+  awsRegion: ""
+  extraArgs:
+    skip-nodes-with-local-storage: false
+    skip-nodes-with-system-pods: true
+    balance-similar-node-groups: true
+    scale-down-utilization-threshold: 0.5
+
+jsonSchema:
+  type: object
+  properties:
+    cloudProvider:
+      type: string
+      title: Cloud Provider
+      enum: [aws, gce, azure, clusterapi, ""]
+    autoDiscovery:
+      type: object
+      title: Auto Discovery
+      properties:
+        clusterName:
+          type: string
+          title: Cluster Name
+          description: Required for auto-discovery of node groups
+    awsRegion:
+      type: string
+      title: AWS Region
+      description: Required for AWS
+    extraArgs:
+      type: object
+      title: Extra Arguments
+      properties:
+        skip-nodes-with-local-storage:
+          type: boolean
+          title: Skip Nodes with Local Storage
+          default: false
+        skip-nodes-with-system-pods:
+          type: boolean
+          title: Skip Nodes with System Pods
+          default: true
+        balance-similar-node-groups:
+          type: boolean
+          title: Balance Similar Node Groups
+          default: true
+        scale-down-utilization-threshold:
+          type: number
+          title: Scale Down Utilization Threshold
+          minimum: 0
+          maximum: 1
+          default: 0.5
+        scale-down-delay-after-add:
+          type: string
+          title: Scale Down Delay After Add
+          default: "10m"
+        scale-down-unneeded-time:
+          type: string
+          title: Scale Down Unneeded Time
+          default: "10m"
+
+uiSchema:
+  cloudProvider:
+    ui:widget: select
+    ui:placeholder: "Select cloud provider"
+  autoDiscovery:
+    clusterName:
+      ui:placeholder: "my-k8s-cluster"
+  awsRegion:
+    ui:placeholder: "us-east-1"
+  extraArgs:
+    scale-down-utilization-threshold:
+      ui:widget: range
+      ui:help: "Scale down nodes with utilization below this threshold"
+    ui:collapsed: true

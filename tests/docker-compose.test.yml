@@ -1,0 +1,361 @@
+# Docker Compose configuration for running tests
+#
+# Test Types:
+#   - Unit tests: No external dependencies (fast)
+#   - Integration tests: Requires backend API
+#   - E2E tests: Requires Docker, Kind cluster, Git server (Gitea)
+#   - GitLab tests: Optional, requires GitLab instance
+#
+# Usage:
+#   docker compose -f tests/docker-compose.test.yml up --build test-unit
+#   docker compose -f tests/docker-compose.test.yml up --build test-integration
+#   docker compose -f tests/docker-compose.test.yml up --build test-e2e
+#   docker compose -f tests/docker-compose.test.yml up --build test-all
+#
+# GitLab (optional, resource-intensive):
+#   docker compose -f tests/docker-compose.test.yml --profile gitlab up test-e2e-gitlab
+
+services:
+  # ============================================================================
+  # Backend API (required for integration and E2E tests)
+  # ============================================================================
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+    networks:
+      - test-network
+
+  # ============================================================================
+  # Unit Tests - no external dependencies
+  # ============================================================================
+  test-unit:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    volumes:
+      - ../backend:/app/backend:ro
+      - ../tests:/app/tests:ro
+    command: pytest tests/unit -v --tb=short
+    networks:
+      - test-network
+
+  # ============================================================================
+  # Integration Tests - needs backend for API calls
+  # ============================================================================
+  test-integration:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    volumes:
+      - ../backend:/app/backend:ro
+      - ../tests:/app/tests:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      - BACKEND_URL=http://backend:8000
+    command: pytest tests/integration -v --tb=short
+    networks:
+      - test-network
+
+  # ============================================================================
+  # Git Server (Gitea) for E2E tests
+  # ============================================================================
+  gitea:
+    image: gitea/gitea:latest
+    environment:
+      - GITEA__security__INSTALL_LOCK=true
+      - GITEA__server__ROOT_URL=http://gitea:3000
+      - GITEA__server__HTTP_PORT=3000
+      - GITEA__database__DB_TYPE=sqlite3
+      - GITEA__service__DISABLE_REGISTRATION=false
+      - GITEA__service__REQUIRE_SIGNIN_VIEW=false
+      - GITEA__service__DEFAULT_ALLOW_CREATE_ORGANIZATION=true
+      - GITEA__service__REGISTER_EMAIL_CONFIRM=false
+      - GITEA__service__ENABLE_NOTIFY_MAIL=false
+      - GITEA__webhook__ALLOWED_HOST_LIST=*
+    ports:
+      - "3031:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/version"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - test-network
+    volumes:
+      - gitea-data:/data
+
+  # Initialize Gitea with test user and repos
+  gitea-init:
+    image: curlimages/curl:latest
+    depends_on:
+      gitea:
+        condition: service_healthy
+    volumes:
+      - ../tests/scripts:/scripts:ro
+      - gitea-init-data:/tmp
+    command: ["/bin/sh", "/scripts/gitea-init.sh"]
+    networks:
+      - test-network
+
+  # ============================================================================
+  # E2E Tests - needs Docker socket for Kind cluster
+  # ============================================================================
+  test-e2e:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    privileged: true
+    volumes:
+      - ../backend:/app/backend:ro
+      - ../tests:/app/tests:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - kind-cache:/root/.kind
+    depends_on:
+      backend:
+        condition: service_healthy
+      gitea:
+        condition: service_healthy
+      gitea-init:
+        condition: service_completed_successfully
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - GIT_SERVER_URL=http://gitea:3000
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - KIND_EXPERIMENTAL_DOCKER_NETWORK=tests_test-network
+      - KEEP_CLUSTER=${KEEP_CLUSTER:-0}
+    command: pytest tests/e2e/test_bootstrap.py -v --tb=short --timeout=900
+    networks:
+      - test-network
+
+  # Full E2E tests (public + private repos)
+  test-e2e-full:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    privileged: true
+    volumes:
+      - ../backend:/app/backend:ro
+      - ../tests:/app/tests:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - kind-cache:/root/.kind
+      - gitea-init-data:/tmp/gitea-init:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      gitea:
+        condition: service_healthy
+      gitea-init:
+        condition: service_completed_successfully
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - GITEA_URL=http://gitea:3000
+      - GIT_SERVER_URL=http://gitea:3000
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - KIND_EXPERIMENTAL_DOCKER_NETWORK=tests_test-network
+      - KEEP_CLUSTER=${KEEP_CLUSTER:-0}
+    command: pytest tests/e2e/test_full_e2e.py -v -s --tb=short --timeout=1200
+    networks:
+      - test-network
+
+  # ============================================================================
+  # Run all tests sequentially
+  # ============================================================================
+  test-all:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    privileged: true
+    volumes:
+      - ../backend:/app/backend:ro
+      - ../tests:/app/tests:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - kind-cache:/root/.kind
+      - gitea-init-data:/tmp/gitea-init:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      gitea:
+        condition: service_healthy
+      gitea-init:
+        condition: service_completed_successfully
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - GIT_SERVER_URL=http://gitea:3000
+      - GITEA_URL=http://gitea:3000
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - KIND_EXPERIMENTAL_DOCKER_NETWORK=tests_test-network
+      - KEEP_CLUSTER=${KEEP_CLUSTER:-0}
+    command: >
+      bash -c "
+        echo '=== Running Unit Tests ===' &&
+        pytest tests/unit -v --tb=short &&
+        echo '=== Running Integration Tests ===' &&
+        pytest tests/integration -v --tb=short &&
+        echo '=== Running E2E Tests ===' &&
+        pytest tests/e2e/test_bootstrap.py -v --tb=short --timeout=900
+      "
+    networks:
+      - test-network
+
+  # ============================================================================
+  # Interactive shell for debugging
+  # ============================================================================
+  test-shell:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - ../backend:/app/backend
+      - ../tests:/app/tests
+      - /var/run/docker.sock:/var/run/docker.sock
+      - kind-cache:/root/.kind
+      - gitea-init-data:/tmp/gitea-init:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      gitea:
+        condition: service_healthy
+      gitea-init:
+        condition: service_completed_successfully
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - GIT_SERVER_URL=http://gitea:3000
+      - GITEA_URL=http://gitea:3000
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    command: /bin/bash
+    networks:
+      - test-network
+
+  # ============================================================================
+  # GitLab Services (optional, resource-intensive)
+  # Run with: docker compose --profile gitlab up
+  # ============================================================================
+  
+  gitlab:
+    image: gitlab/gitlab-ce:latest
+    profiles: ["gitlab"]
+    hostname: gitlab.local
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://gitlab:80'
+        gitlab_rails['initial_root_password'] = 'test12345678'
+        gitlab_rails['gitlab_shell_ssh_port'] = 2222
+        puma['worker_processes'] = 2
+        sidekiq['max_concurrency'] = 5
+        prometheus_monitoring['enable'] = false
+        gitlab_rails['smtp_enable'] = false
+        registry['enable'] = false
+        nginx['listen_port'] = 80
+        nginx['listen_https'] = false
+    ports:
+      - "8080:80"
+      - "2222:22"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/-/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 300s
+    networks:
+      - test-network
+    volumes:
+      - gitlab-config:/etc/gitlab
+      - gitlab-logs:/var/log/gitlab
+      - gitlab-data:/var/opt/gitlab
+      - ../tests/scripts:/scripts:ro
+    shm_size: '256m'
+  
+  # Initialize GitLab with test user and repos
+  gitlab-init:
+    image: docker:cli
+    profiles: ["gitlab"]
+    depends_on:
+      gitlab:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - gitlab-init-data:/tmp/gitlab-init
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "=== GitLab Init: Running setup script ===" 
+        sleep 30
+        echo "Running gitlab-setup.rb..."
+        docker exec tests-gitlab-1 gitlab-rails runner /scripts/gitlab-setup.rb
+        echo "Copying credentials to shared volume..."
+        docker cp tests-gitlab-1:/tmp/gitlab-init/. /tmp/gitlab-init/ 2>/dev/null || true
+        echo "=== Credentials saved ==="
+        ls -la /tmp/gitlab-init/ 2>/dev/null || echo "No files yet"
+        echo "=== GitLab initialization complete ==="
+    networks:
+      - test-network
+  
+  # E2E tests with GitLab
+  test-e2e-gitlab:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    profiles: ["gitlab"]
+    privileged: true
+    volumes:
+      - ../backend:/app/backend:ro
+      - ../tests:/app/tests:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - kind-cache:/root/.kind
+      - gitea-init-data:/tmp/gitea-init:ro
+      - gitlab-init-data:/tmp/gitlab-init:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      gitea:
+        condition: service_healthy
+      gitea-init:
+        condition: service_completed_successfully
+      gitlab:
+        condition: service_healthy
+      gitlab-init:
+        condition: service_completed_successfully
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - GITEA_URL=http://gitea:3000
+      - GIT_SERVER_URL=http://gitea:3000
+      - GITLAB_URL=http://gitlab:80
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - KIND_EXPERIMENTAL_DOCKER_NETWORK=tests_test-network
+      - KEEP_CLUSTER=${KEEP_CLUSTER:-0}
+    command: pytest tests/e2e/test_full_e2e.py -v -s --tb=short --timeout=1800
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  kind-cache:
+    driver: local
+  gitea-data:
+    driver: local
+  gitea-init-data:
+    driver: local
+  gitlab-config:
+    driver: local
+  gitlab-logs:
+    driver: local
+  gitlab-data:
+    driver: local
+  gitlab-init-data:
+    driver: local

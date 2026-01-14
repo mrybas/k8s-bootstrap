@@ -1,0 +1,28 @@
+# Component Generator Docker Image
+# =================================
+#
+# All dependencies included - no local setup needed
+#
+
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Helm
+ARG HELM_VERSION=v3.14.0
+RUN curl -fsSL https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz | tar xzf - \
+    && mv linux-amd64/helm /usr/local/bin/ \
+    && rm -rf linux-amd64
+
+# Install Python dependencies
+RUN pip install --no-cache-dir pyyaml
+
+WORKDIR /app
+
+COPY component_generator.py /app/
+
+ENTRYPOINT ["python3", "/app/component_generator.py"]

@@ -1,0 +1,20 @@
+# Container for updating Helm chart versions
+FROM python:3.11-slim
+
+# Install Helm
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    && curl -fsSL https://get.helm.sh/helm-v3.14.0-linux-amd64.tar.gz | tar xz -C /usr/local/bin --strip-components=1 linux-amd64/helm \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies
+RUN pip install --no-cache-dir pyyaml jsonschema
+
+WORKDIR /app
+
+# Copy only what's needed
+COPY scripts/update-chart-versions.py /app/scripts/
+COPY backend/definitions /app/backend/definitions
+
+ENTRYPOINT ["python", "/app/scripts/update-chart-versions.py"]

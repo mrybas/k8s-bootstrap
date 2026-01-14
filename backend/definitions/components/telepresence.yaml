@@ -1,0 +1,104 @@
+# Telepresence - Local K8s Development
+# Auto-generated component definition
+
+id: telepresence
+name: Telepresence
+description: Fast, local development for Kubernetes with traffic manager
+category: system
+categoryName: System
+categoryDescription: Core system components
+icon: "🔌"
+priority: 50
+docsUrl: https://www.telepresence.io/docs/latest/
+
+chartType: upstream
+namespace: ambassador
+releaseName: traffic-manager
+createNamespace: true
+timeout: 5m
+
+upstream:
+  repository: https://app.getambassador.io
+  chartName: telepresence
+  version: "2.20.2"
+  appVersion: "2.21.1"
+
+dependsOn: []
+
+defaultValues:
+  replicaCount: 1
+  logLevel: info
+
+jsonSchema:
+  type: object
+  properties:
+    replicaCount:
+      type: integer
+      title: Replicas
+      default: 1
+      minimum: 1
+    logLevel:
+      type: string
+      title: Log Level
+      enum:
+        - debug
+        - info
+        - warning
+        - error
+      default: info
+    agent:
+      type: object
+      title: Agent Configuration
+      properties:
+        image:
+          type: object
+          properties:
+            registry:
+              type: string
+              title: Registry
+              default: docker.io/datawire
+            name:
+              type: string
+              title: Image Name
+              default: ambassador-telepresence-agent
+    intercept:
+      type: object
+      title: Intercept Configuration
+      properties:
+        disableGlobal:
+          type: boolean
+          title: Disable Global Intercepts
+          default: false
+    grpc:
+      type: object
+      title: gRPC Configuration
+      properties:
+        maxReceiveSize:
+          type: string
+          title: Max Receive Size
+          default: 4Mi
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Request
+              default: "100m"
+            memory:
+              type: string
+              title: Memory Request
+              default: "128Mi"
+
+uiSchema:
+  agent:
+    ui:collapsed: true
+  intercept:
+    ui:collapsed: true
+  grpc:
+    ui:collapsed: true
+  resources:
+    ui:collapsed: true

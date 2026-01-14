@@ -1,0 +1,358 @@
+# Kube-Prometheus-Stack Component Definition
+# Upstream Helm chart wrapper - Full monitoring stack
+
+id: kube-prometheus-stack
+name: Kube Prometheus Stack
+description: Full Kubernetes monitoring stack with Prometheus, Grafana, and Alertmanager
+category: observability
+categoryName: Observability
+categoryDescription: Monitoring, logging, and observability tools
+icon: "📊"
+priority: 30
+docsUrl: https://prometheus-community.github.io/helm-charts/charts/kube-prometheus-stack/
+
+# Auto-include Prometheus Operator CRDs
+requiresCrds:
+  - prometheus-operator-crds
+
+chartType: upstream
+namespace: monitoring
+releaseName: kube-prometheus-stack
+createNamespace: true
+timeout: 15m
+
+# Upstream chart details
+upstream:
+  repository: https://prometheus-community.github.io/helm-charts
+  chartName: kube-prometheus-stack
+  version: "80.14.3"
+  appVersion: "0.71.2"
+
+# Dependencies
+dependsOn:
+  - namespaces
+  - prometheus-operator-crds
+
+# Default values
+defaultValues:
+  grafana:
+    enabled: true
+    adminPassword: admin
+    persistence:
+      enabled: false
+    sidecar:
+      dashboards:
+        enabled: true
+        searchNamespace: ALL
+  prometheus:
+    prometheusSpec:
+      retention: 15d
+      storageSpec: {}
+      resources:
+        requests:
+          cpu: 200m
+          memory: 1Gi
+        limits:
+          cpu: 1000m
+          memory: 2Gi
+  alertmanager:
+    enabled: true
+    alertmanagerSpec:
+      storage: {}
+  kubeStateMetrics:
+    enabled: true
+  nodeExporter:
+    enabled: true
+
+# JSON Schema for UI form
+jsonSchema:
+  type: object
+  properties:
+    grafana:
+      type: object
+      title: Grafana
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Grafana
+          description: Deploy Grafana dashboard
+          default: true
+        adminPassword:
+          type: string
+          title: Admin Password
+          description: Grafana admin password (leave empty to use existing secret)
+          default: admin
+        existingSecret:
+          type: string
+          title: Existing Secret
+          description: "Name of existing secret with admin password (key: admin-password)"
+        persistence:
+          type: object
+          title: Persistence
+          properties:
+            enabled:
+              type: boolean
+              title: Enable Persistence
+              default: false
+            storageClassName:
+              type: string
+              title: Storage Class
+              description: Storage class for persistent volume
+            size:
+              type: string
+              title: Size
+              description: Persistent volume size
+              default: "10Gi"
+        ingress:
+          type: object
+          title: Ingress
+          properties:
+            enabled:
+              type: boolean
+              title: Enable Ingress
+              default: false
+            hosts:
+              type: array
+              title: Hosts
+              items:
+                type: string
+            tls:
+              type: array
+              title: TLS
+              items:
+                type: object
+                properties:
+                  secretName:
+                    type: string
+                  hosts:
+                    type: array
+                    items:
+                      type: string
+    prometheus:
+      type: object
+      title: Prometheus
+      properties:
+        prometheusSpec:
+          type: object
+          title: Prometheus Spec
+          properties:
+            retention:
+              type: string
+              title: Retention Period
+              description: How long to keep data
+              default: "15d"
+              enum:
+                - "7d"
+                - "15d"
+                - "30d"
+                - "60d"
+                - "90d"
+            storageSpec:
+              type: object
+              title: Storage
+              properties:
+                volumeClaimTemplate:
+                  type: object
+                  properties:
+                    spec:
+                      type: object
+                      properties:
+                        storageClassName:
+                          type: string
+                          title: Storage Class
+                        resources:
+                          type: object
+                          properties:
+                            requests:
+                              type: object
+                              properties:
+                                storage:
+                                  type: string
+                                  title: Storage Size
+                                  default: "50Gi"
+            resources:
+              type: object
+              title: Resources
+              properties:
+                requests:
+                  type: object
+                  properties:
+                    cpu:
+                      type: string
+                      title: CPU Request
+                      default: "200m"
+                    memory:
+                      type: string
+                      title: Memory Request
+                      default: "1Gi"
+                limits:
+                  type: object
+                  properties:
+                    cpu:
+                      type: string
+                      title: CPU Limit
+                      default: "1000m"
+                    memory:
+                      type: string
+                      title: Memory Limit
+                      default: "2Gi"
+    alertmanager:
+      type: object
+      title: Alertmanager
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Alertmanager
+          default: true
+        alertmanagerSpec:
+          type: object
+          properties:
+            storage:
+              type: object
+              title: Storage
+              properties:
+                volumeClaimTemplate:
+                  type: object
+                  properties:
+                    spec:
+                      type: object
+                      properties:
+                        storageClassName:
+                          type: string
+                          title: Storage Class
+                        resources:
+                          type: object
+                          properties:
+                            requests:
+                              type: object
+                              properties:
+                                storage:
+                                  type: string
+                                  title: Storage Size
+                                  default: "10Gi"
+    kubeStateMetrics:
+      type: object
+      title: Kube State Metrics
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Kube State Metrics
+          default: true
+    nodeExporter:
+      type: object
+      title: Node Exporter
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Node Exporter
+          default: true
+    resourcePreset:
+      type: string
+      title: Resource Preset
+      description: Predefined resource configurations
+      enum:
+        - minimal
+        - small
+        - medium
+        - large
+      default: small
+
+# UI Schema
+uiSchema:
+  grafana:
+    enabled:
+      ui:help: "Grafana provides dashboards for visualization"
+    adminPassword:
+      ui:widget: password
+      ui:help: "Set a secure password or use existing secret"
+    existingSecret:
+      ui:help: "If set, adminPassword is ignored"
+    persistence:
+      ui:collapsed: true
+      storageClassName:
+        ui:placeholder: "default"
+      size:
+        ui:placeholder: "10Gi"
+    ingress:
+      ui:collapsed: true
+      hosts:
+        ui:widget: array
+        items:
+          ui:placeholder: "grafana.example.com"
+  prometheus:
+    prometheusSpec:
+      retention:
+        ui:widget: select
+        ui:help: "Longer retention requires more storage"
+      storageSpec:
+        ui:collapsed: true
+        volumeClaimTemplate:
+          spec:
+            storageClassName:
+              ui:placeholder: "Leave empty for default"
+            resources:
+              requests:
+                storage:
+                  ui:placeholder: "50Gi"
+      resources:
+        ui:collapsed: true
+  alertmanager:
+    ui:collapsed: false
+    alertmanagerSpec:
+      storage:
+        ui:collapsed: true
+  kubeStateMetrics:
+    ui:collapsed: true
+  nodeExporter:
+    ui:collapsed: true
+  resourcePreset:
+    ui:widget: select
+    ui:help: |
+      Resource presets:
+      - minimal: Development/testing (256Mi/1Gi)
+      - small: Small clusters <10 nodes (1Gi/2Gi)
+      - medium: Medium clusters 10-50 nodes (2Gi/4Gi)
+      - large: Large clusters 50+ nodes (4Gi/8Gi)
+
+# Resource presets mapping (used by generator)
+resourcePresets:
+  minimal:
+    prometheus:
+      prometheusSpec:
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+  small:
+    prometheus:
+      prometheusSpec:
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "1Gi"
+          limits:
+            cpu: "1000m"
+            memory: "2Gi"
+  medium:
+    prometheus:
+      prometheusSpec:
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+  large:
+    prometheus:
+      prometheusSpec:
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "4Gi"
+          limits:
+            cpu: "4000m"
+            memory: "8Gi"

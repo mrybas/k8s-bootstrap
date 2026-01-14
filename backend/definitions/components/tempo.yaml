@@ -1,0 +1,90 @@
+# Grafana Tempo - Distributed Tracing
+# Auto-generated component definition
+
+id: tempo
+name: Grafana Tempo
+description: High-scale distributed tracing backend for Grafana
+category: observability
+categoryName: Observability
+categoryDescription: Monitoring, logging, tracing, and alerting
+icon: "🔍"
+priority: 50
+docsUrl: https://grafana.com/docs/tempo/latest/
+
+chartType: upstream
+namespace: tempo
+releaseName: tempo
+createNamespace: true
+timeout: 10m
+
+upstream:
+  repository: https://grafana.github.io/helm-charts
+  chartName: tempo
+  version: "1.24.3"
+  appVersion: "2.6.0"
+
+dependsOn: []
+
+defaultValues:
+  tempo:
+    metricsGenerator:
+      enabled: true
+
+jsonSchema:
+  type: object
+  properties:
+    tempo:
+      type: object
+      title: Tempo Configuration
+      properties:
+        metricsGenerator:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Enable Metrics Generator
+              default: true
+    persistence:
+      type: object
+      title: Persistence
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Persistence
+          default: false
+        size:
+          type: string
+          title: Storage Size
+          default: "10Gi"
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Request
+              default: "100m"
+            memory:
+              type: string
+              title: Memory Request
+              default: "256Mi"
+        limits:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Limit
+              default: "500m"
+            memory:
+              type: string
+              title: Memory Limit
+              default: "512Mi"
+
+uiSchema:
+  resources:
+    ui:collapsed: true
+  persistence:
+    ui:collapsed: true

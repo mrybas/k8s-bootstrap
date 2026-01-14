@@ -1,0 +1,39 @@
+# Ingress test scenario
+# Tests ingress-nginx + cert-manager + external-dns
+
+name: ingress
+description: Ingress stack with TLS support
+
+components:
+  - cert-manager
+  - ingress-nginx
+  - external-dns
+
+# Expected results
+expected:
+  namespaces:
+    - flux-system
+    - cert-manager
+    - ingress-nginx
+    - external-dns
+  
+  helmreleases:
+    - name: cert-manager
+      namespace: flux-system
+      ready: true
+    - name: ingress-nginx
+      namespace: flux-system
+      ready: true
+    - name: external-dns
+      namespace: flux-system
+      ready: true
+  
+  deployments:
+    - name: cert-manager
+      namespace: cert-manager
+    - name: ingress-nginx-controller
+      namespace: ingress-nginx
+
+timeouts:
+  flux_sync: 600
+  helmrelease: 300

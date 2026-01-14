@@ -1,0 +1,160 @@
+# GitLab - DevOps Platform
+# Auto-generated component definition
+
+id: gitlab
+name: GitLab
+description: Complete DevOps platform with Git repository management, CI/CD, and more
+category: apps
+categoryName: Apps
+categoryDescription: Applications and services
+icon: "🦊"
+priority: 50
+docsUrl: https://docs.gitlab.com/charts/
+
+chartType: upstream
+namespace: gitlab
+releaseName: gitlab
+createNamespace: true
+timeout: 20m
+
+upstream:
+  repository: https://charts.gitlab.io/
+  chartName: gitlab
+  version: "9.7.1"
+  appVersion: "17.7.0"
+
+dependsOn: []
+
+defaultValues:
+  global:
+    hosts:
+      domain: example.com
+    ingress:
+      configureCertmanager: false
+  # External cert-manager, nginx, prometheus - disable bundled ones
+  certmanager:
+    installCRDs: false
+  nginx-ingress:
+    enabled: false
+  prometheus:
+    install: false
+  gitlab-runner:
+    install: false
+
+jsonSchema:
+  type: object
+  properties:
+    global:
+      type: object
+      title: Global Settings
+      properties:
+        hosts:
+          type: object
+          title: Hosts
+          properties:
+            domain:
+              type: string
+              title: Base Domain
+              description: Base domain for GitLab services
+              default: example.com
+            https:
+              type: boolean
+              title: Use HTTPS
+              default: true
+        ingress:
+          type: object
+          title: Ingress
+          properties:
+            class:
+              type: string
+              title: Ingress Class
+              default: nginx
+            configureCertmanager:
+              type: boolean
+              title: Configure Cert-Manager
+              default: false
+        edition:
+          type: string
+          title: GitLab Edition
+          enum:
+            - ce
+            - ee
+          default: ce
+    certmanager:
+      type: object
+      title: Cert-Manager
+      properties:
+        installCRDs:
+          type: boolean
+          title: Install Cert-Manager CRDs (use external cert-manager if false)
+          default: false
+    nginx-ingress:
+      type: object
+      title: NGINX Ingress
+      properties:
+        enabled:
+          type: boolean
+          title: Install NGINX Ingress (use external if false)
+          default: false
+    prometheus:
+      type: object
+      title: Prometheus
+      properties:
+        install:
+          type: boolean
+          title: Install Prometheus (use external if false)
+          default: false
+    gitlab-runner:
+      type: object
+      title: GitLab Runner
+      properties:
+        install:
+          type: boolean
+          title: Install GitLab Runner
+          default: false
+    gitlab:
+      type: object
+      title: GitLab Components
+      properties:
+        webservice:
+          type: object
+          title: Web Service
+          properties:
+            minReplicas:
+              type: integer
+              title: Min Replicas
+              default: 1
+        sidekiq:
+          type: object
+          title: Sidekiq
+          properties:
+            minReplicas:
+              type: integer
+              title: Min Replicas
+              default: 1
+        gitaly:
+          type: object
+          title: Gitaly
+          properties:
+            persistence:
+              type: object
+              properties:
+                size:
+                  type: string
+                  title: Storage Size
+                  default: 50Gi
+
+uiSchema:
+  global:
+    ingress:
+      ui:collapsed: true
+  certmanager:
+    ui:collapsed: true
+  nginx-ingress:
+    ui:collapsed: true
+  prometheus:
+    ui:collapsed: true
+  gitlab-runner:
+    ui:collapsed: true
+  gitlab:
+    ui:collapsed: true
