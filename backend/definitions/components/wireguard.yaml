@@ -12,7 +12,7 @@ priority: 50
 docsUrl: https://www.wireguard.com/
 
 chartType: upstream
-namespace: wireguard
+namespace: o0-wireguard
 releaseName: wireguard
 createNamespace: true
 timeout: 5m

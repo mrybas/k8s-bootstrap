@@ -19,6 +19,7 @@ interface GenerateModalProps {
   selections: ComponentSelection[];
   onClose: () => void;
   importedConfig?: ImportedConfig | null;
+  cniBootstrap?: string | null;  // CNI to install before Flux (for clusters without CNI)
 }
 
 interface BootstrapResponse {
@@ -73,7 +74,7 @@ const detectPlatform = (repoUrl: string): GitPlatform => {
   return 'github';
 };
 
-export function GenerateModal({ selections, onClose, importedConfig }: GenerateModalProps) {
+export function GenerateModal({ selections, onClose, importedConfig, cniBootstrap }: GenerateModalProps) {
   const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
   const defaultRepoUrl = isDevMode 
     ? 'http://gitea:3000/dev/bootstrap-test.git' 
@@ -129,6 +130,7 @@ export function GenerateModal({ selections, onClose, importedConfig }: GenerateM
           })),
           git_auth: gitAuth,
           skip_git_push: skipGitPush,
+          cni_bootstrap: cniBootstrap || undefined,
         }),
       });
 
@@ -140,13 +142,14 @@ export function GenerateModal({ selections, onClose, importedConfig }: GenerateM
       const data: BootstrapResponse = await response.json();
       
       // Construct curl command with current origin (frontend URL, not backend)
+      // Using "curl | bash -s --" format so arguments can be passed: curl ... | bash -s -- --kubeconfig /path
       const origin = window.location.origin;
-      data.curl_command = `bash -c "$(curl -fsSL ${origin}/${scriptPath}/${data.token})"`;
+      data.curl_command = `curl -fsSL ${origin}/${scriptPath}/${data.token} | bash -s --`;
       
       // For dev mode, also generate container-accessible URL
       const isDevModeLocal = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
       data.devCurlCommand = isDevModeLocal 
-        ? `bash -c "$(curl -fsSL http://frontend:3000/${scriptPath}/${data.token})"`
+        ? `curl -fsSL http://frontend:3000/${scriptPath}/${data.token} | bash -s --`
         : null;
       
       setBootstrapResponse(data);
@@ -157,8 +160,21 @@ export function GenerateModal({ selections, onClose, importedConfig }: GenerateM
     }
   };
 
-  const copyToClipboard = (text: string, field: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      // Modern Clipboard API (requires HTTPS or localhost)
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Fallback for non-secure contexts
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+    }
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
   };

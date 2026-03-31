@@ -12,7 +12,7 @@ priority: 54
 docsUrl: https://docs.victoriametrics.com/cluster-victoriametrics/
 
 chartType: upstream
-namespace: victoria-metrics
+namespace: o0-victoria-metrics
 releaseName: vmcluster
 createNamespace: true
 timeout: 10m
@@ -20,7 +20,7 @@ timeout: 10m
 upstream:
   repository: https://victoriametrics.github.io/helm-charts/
   chartName: victoria-metrics-cluster
-  version: "0.32.0"
+  version: "0.34.0"
   appVersion: "v1.106.1"
 
 dependsOn:

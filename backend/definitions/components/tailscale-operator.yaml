@@ -12,7 +12,7 @@ priority: 50
 docsUrl: https://tailscale.com/kb/1236/kubernetes-operator/
 
 chartType: upstream
-namespace: tailscale
+namespace: o0-tailscale
 releaseName: tailscale-operator
 createNamespace: true
 timeout: 5m

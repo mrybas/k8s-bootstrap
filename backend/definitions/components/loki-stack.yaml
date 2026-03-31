@@ -12,7 +12,7 @@ priority: 35
 docsUrl: https://grafana.com/docs/loki/latest/
 
 chartType: upstream
-namespace: loki
+namespace: o0-loki
 releaseName: loki-stack
 createNamespace: true
 

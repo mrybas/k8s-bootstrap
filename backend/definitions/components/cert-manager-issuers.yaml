@@ -12,7 +12,7 @@ priority: 12  # After cert-manager
 docsUrl: https://cert-manager.io/docs/configuration/acme/
 
 chartType: custom
-namespace: cert-manager
+namespace: o0-cert-manager
 releaseName: cert-manager-issuers
 createNamespace: false
 

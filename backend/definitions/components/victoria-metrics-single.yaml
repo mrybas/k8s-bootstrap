@@ -15,7 +15,7 @@ multiInstance: true
 requiresOperator: victoria-metrics-operator
 
 chartType: custom
-namespace: victoria-metrics
+namespace: o0-victoria-metrics
 releaseName: vmsingle
 createNamespace: false
 
@@ -27,7 +27,7 @@ defaultValues:
   retentionPeriod: "14d"
   storage:
     enabled: true
-    size: 50Gi
+    size: 20Gi
     storageClass: ""
   resources:
     requests:
@@ -36,8 +36,12 @@ defaultValues:
     limits:
       cpu: 2000m
       memory: 4Gi
-  scrapeConfig:
-    enabled: true
+  serviceMonitor:
+    enabled: false
+  ingress:
+    enabled: false
+    host: ""
+    ingressClassName: ""
 
 jsonSchema:
   type: object
@@ -59,7 +63,7 @@ jsonSchema:
         size:
           type: string
           title: Storage Size
-          default: "50Gi"
+          default: "20Gi"
         storageClass:
           type: string
           title: Storage Class
@@ -85,15 +89,15 @@ jsonSchema:
             memory:
               type: string
               default: "4Gi"
-    scrapeConfig:
+    serviceMonitor:
       type: object
-      title: Scrape Configuration
+      title: ServiceMonitor
       properties:
         enabled:
           type: boolean
-          title: Enable Default Scrape Config
-          description: Scrape kubelet, kube-state-metrics, node-exporter
-          default: true
+          title: Enable ServiceMonitor
+          description: Create ServiceMonitor for vmsingle metrics
+          default: false
 
 uiSchema:
   retentionPeriod:
@@ -132,24 +136,46 @@ templates:
           memory: {{ .Values.resources.limits.memory }}
       extraArgs:
         dedup.minScrapeInterval: "30s"
-  vmservicescrape.yaml: |
-    {{- if .Values.scrapeConfig.enabled }}
+  servicemonitor.yaml: |
+    {{- if .Values.serviceMonitor.enabled }}
     ---
-    apiVersion: operator.victoriametrics.com/v1beta1
-    kind: VMServiceScrape
+    apiVersion: monitoring.coreos.com/v1
+    kind: ServiceMonitor
     metadata:
-      name: kubelet
+      name: vmsingle
     spec:
-      jobLabel: kubelet
       namespaceSelector:
         matchNames:
-          - kube-system
+          - victoria-metrics
       selector:
         matchLabels:
-          k8s-app: kubelet
+          app.kubernetes.io/name: victoria-metrics-operator
+          app.kubernetes.io/instance: vmsingle
       endpoints:
-        - port: https-metrics
-          scheme: https
-          tlsConfig:
-            insecureSkipVerify: true
+        - port: http
+          interval: 30s
+    {{- end }}
+  ingress.yaml: |
+    {{- if .Values.ingress.enabled }}
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: vmsingle-vmui
+      annotations:
+        nginx.ingress.kubernetes.io/rewrite-target: /
+    spec:
+      {{- if .Values.ingress.ingressClassName }}
+      ingressClassName: {{ .Values.ingress.ingressClassName }}
+      {{- end }}
+      rules:
+        - host: {{ .Values.ingress.host }}
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: vmsingle-vmsingle
+                    port:
+                      number: 8429
     {{- end }}

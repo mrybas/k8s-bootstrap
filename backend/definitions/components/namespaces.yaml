@@ -76,6 +76,18 @@ uiSchema:
         ui:options:
           addButtonText: "Add Annotation"
 
+# --- Tenant Addon Configuration ---
+# Same namespaces chart is deployed into tenant clusters
+tenantAddon: true
+tenantConfig:
+  order: 0
+  namespace: default
+  discovery_type: ""
+  required: true
+  default: true
+  defaultValues: {}
+  parameters: []
+
 # Chart templates (for custom charts)
 templates:
   namespaces.yaml: |

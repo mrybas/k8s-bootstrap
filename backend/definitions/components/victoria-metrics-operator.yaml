@@ -15,6 +15,9 @@ docsUrl: https://docs.victoriametrics.com/operator/
 requiresCrds:
   - prometheus-operator-crds
 
+dependsOn:
+  - victoria-metrics-crds
+
 # Operator pattern
 isOperator: true
 operatorFor: victoria-metrics
@@ -22,16 +25,20 @@ suggestsInstances:
   - victoria-metrics-single
 
 chartType: upstream
-namespace: victoria-metrics
+namespace: o0-victoria-metrics
 releaseName: victoria-metrics-operator
 createNamespace: true
+podSecurityEnforce: privileged  # Required for node metrics scraping
 
 upstream:
   repository: https://victoriametrics.github.io/helm-charts
   chartName: victoria-metrics-operator
-  version: "0.57.1"
+  version: "0.58.1"
 
 defaultValues:
+  # CRDs are installed by victoria-metrics-crds component
+  crds:
+    enabled: false
   operator:
     enable_converter_ownership: true
   serviceMonitor:

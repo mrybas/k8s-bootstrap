@@ -12,14 +12,14 @@ priority: 18
 docsUrl: https://oauth2-proxy.github.io/oauth2-proxy/
 
 chartType: upstream
-namespace: oauth2-proxy
+namespace: o0-oauth2-proxy
 releaseName: oauth2-proxy
 createNamespace: true
 
 upstream:
   repository: https://oauth2-proxy.github.io/manifests
   chartName: oauth2-proxy
-  version: "10.0.0"
+  version: "10.1.3"
 
 defaultValues:
   config:

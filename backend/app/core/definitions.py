@@ -1,10 +1,13 @@
 """
 Component and category definition loader
 """
+import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 import yaml
+
+logger = logging.getLogger("k8s_bootstrap.definitions")
 
 
 class DefinitionLoader:
@@ -28,7 +31,7 @@ class DefinitionLoader:
                     data = yaml.safe_load(f)
                     self._categories_cache = data.get("categories", {})
             except Exception as e:
-                print(f"Error loading categories: {e}")
+                logger.warning(f"Error loading categories: {e}")
                 self._categories_cache = {}
         else:
             # Default categories
@@ -55,7 +58,7 @@ class DefinitionLoader:
                     if data and 'id' in data:
                         definitions[data['id']] = data
             except Exception as e:
-                print(f"Error loading {file_path}: {e}")
+                logger.warning(f"Error loading {file_path}: {e}")
         
         # Sort by priority/order
         self._cache = dict(sorted(
@@ -94,3 +97,27 @@ def get_loader() -> DefinitionLoader:
 def get_categories() -> Dict[str, Any]:
     """Get all categories from the global loader"""
     return get_loader().load_categories()
+
+
+def reload_global_loader():
+    """Force reload the global loader's caches (definitions + categories)."""
+    loader = get_loader()
+    loader.reload()
+    loader.load_categories(force_reload=True)
+    return loader
+
+
+def load_tenant_addons() -> List[Dict[str, Any]]:
+    """Load tenant addon definitions from components with tenantAddon: true."""
+    loader = get_loader()
+    all_components = loader.load_all()
+
+    addons = []
+    for comp_id, defn in all_components.items():
+        if not defn.get("tenantAddon"):
+            continue
+        addons.append(defn)
+
+    # Sort by tenantConfig.order
+    addons.sort(key=lambda x: x.get("tenantConfig", {}).get("order", 100))
+    return addons

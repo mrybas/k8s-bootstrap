@@ -1,0 +1,220 @@
+# Linstor Storage Pool Configuration
+# Supports: File Pool (auto/limited) or LVM on dedicated disks
+# Includes Talos Linux compatibility config
+# Docs: https://piraeus.io/docs/stable/how-to/talos/
+
+id: linstor-storage-pool
+name: Linstor Storage Pool
+description: Configure storage pools for Linstor - File Pool or LVM
+category: storage
+categoryName: Storage
+categoryDescription: Storage solutions
+icon: "📁"
+priority: 47
+isInstance: true
+instanceOf: linstor-cluster
+multiInstance: false
+requiresOperator: linstor-cluster
+docsUrl: https://piraeus.io/docs/
+
+chartType: custom
+namespace: o0-piraeus
+releaseName: linstor-storage-pool
+createNamespace: false
+timeout: 5m
+
+dependsOn:
+  - linstor-cluster
+  - snapshot-controller  # Required for VolumeSnapshotClass CRDs
+
+templates:
+  # Talos Linux specific configuration
+  # Removes systemd-related initContainers and volumes (Talos doesn't have systemd)
+  # DRBD kernel module is loaded via Talos system extension
+  talos-config.yaml: |
+    {{- if .Values.talosCompatibility }}
+    apiVersion: piraeus.io/v1
+    kind: LinstorSatelliteConfiguration
+    metadata:
+      name: talos-loader-override
+      namespace: o0-piraeus
+    spec:
+      podTemplate:
+        spec:
+          initContainers:
+            - name: drbd-shutdown-guard
+              $patch: delete
+            - name: drbd-module-loader
+              $patch: delete
+          volumes:
+            - name: run-systemd-system
+              $patch: delete
+            - name: run-drbd-shutdown-guard
+              $patch: delete
+            - name: systemd-bus-socket
+              $patch: delete
+            - name: lib-modules
+              $patch: delete
+            - name: usr-src
+              $patch: delete
+            - name: etc-lvm-backup
+              hostPath:
+                path: /var/etc/lvm/backup
+                type: DirectoryOrCreate
+            - name: etc-lvm-archive
+              hostPath:
+                path: /var/etc/lvm/archive
+                type: DirectoryOrCreate
+    {{- end }}
+
+  # LinstorSatelliteConfiguration - configures storage pools on satellites
+  satellite-config.yaml: |
+    apiVersion: piraeus.io/v1
+    kind: LinstorSatelliteConfiguration
+    metadata:
+      name: storage-pool-config
+      namespace: o0-piraeus
+    spec:
+      storagePools:
+        {{- if or (eq .Values.storageMode "file_auto") (eq .Values.storageMode "file_limited") }}
+        - name: {{ .Values.poolName | default "thinpool" }}
+          fileThinPool:
+            directory: {{ .Values.poolDirectory | default "/var/lib/linstor-pools" }}
+        {{- else if eq .Values.storageMode "lvm" }}
+        - name: {{ .Values.poolName | default "lvmpool" }}
+          lvmThinPool:
+            volumeGroup: linstor_vg
+            thinPool: linstor_thinpool
+        {{- else if eq .Values.storageMode "zfs" }}
+        - name: {{ .Values.poolName | default "linstor-pool" }}
+          zfsThinPool:
+            zPool: {{ .Values.zfsPool | default "linstor" }}
+        {{- end }}
+      {{- if eq .Values.storageMode "lvm" }}
+      properties:
+        {{- range .Values.lvmDevices }}
+        - name: StorDriver/LvmVg
+          value: {{ . }}
+        {{- end }}
+      {{- end }}
+  
+  # StorageClass for provisioning volumes
+  # Using Immediate binding to avoid topology/additional replicas issues
+  storageclass.yaml: |
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: {{ .Values.storageClassName | default "linstor" }}
+      annotations:
+        storageclass.kubernetes.io/is-default-class: "{{ .Values.isDefault | default true }}"
+    provisioner: linstor.csi.linbit.com
+    allowVolumeExpansion: true
+    reclaimPolicy: Delete
+    volumeBindingMode: Immediate
+    parameters:
+      autoPlace: "{{ .Values.replicaCount | default 2 }}"
+      {{- if or (eq .Values.storageMode "file_auto") (eq .Values.storageMode "file_limited") }}
+      storagePool: "{{ .Values.poolName | default "thinpool" }}"
+      {{- else if eq .Values.storageMode "lvm" }}
+      storagePool: "{{ .Values.poolName | default "lvmpool" }}"
+      {{- else if eq .Values.storageMode "zfs" }}
+      storagePool: "{{ .Values.poolName | default "linstor-pool" }}"
+      {{- end }}
+      csi.storage.k8s.io/fstype: "ext4"
+
+  # VolumeSnapshotClass for fast cloning via DRBD snapshots
+  # Enables CDI to clone VM disks instantly instead of copying
+  volumesnapshotclass.yaml: |
+    {{- if .Values.enableSnapshots }}
+    apiVersion: snapshot.storage.k8s.io/v1
+    kind: VolumeSnapshotClass
+    metadata:
+      name: {{ .Values.storageClassName | default "linstor" }}-snapshots
+      annotations:
+        snapshot.storage.kubernetes.io/is-default-class: "true"
+    driver: linstor.csi.linbit.com
+    deletionPolicy: Delete
+    {{- end }}
+
+defaultValues:
+  talosCompatibility: true
+  storageMode: file_auto
+  poolName: thinpool
+  poolDirectory: /var/lib/linstor-pools
+  poolSize: "100Gi"
+  lvmDevices: []
+  zfsPool: linstor
+  storageClassName: linstor
+  isDefault: true
+  replicaCount: 2
+  enableSnapshots: true  # Creates VolumeSnapshotClass for fast VM cloning
+
+jsonSchema:
+  type: object
+  properties:
+    talosCompatibility:
+      type: boolean
+      title: Talos Linux Compatibility
+      description: "Enable Talos-specific config (removes systemd deps, uses DRBD extension)"
+      default: true
+    storageMode:
+      type: string
+      title: Storage Mode
+      enum:
+        - file_auto
+        - file_limited
+        - lvm
+        - zfs
+      default: file_auto
+    poolName:
+      type: string
+      title: Pool Name
+      default: thinpool
+    poolDirectory:
+      type: string
+      title: Pool Directory
+      description: "Directory for File Thin Pool"
+      default: /var/lib/linstor-pools
+    poolSize:
+      type: string
+      title: Pool Size
+      description: "Maximum size for limited File Pool"
+      default: "100Gi"
+    lvmDevices:
+      type: array
+      title: LVM Devices
+      description: "Device paths for LVM mode"
+      items:
+        type: string
+    zfsPool:
+      type: string
+      title: ZFS Pool Name
+      description: "Name of existing ZFS pool on nodes (must be pre-created)"
+      default: linstor
+    storageClassName:
+      type: string
+      title: StorageClass Name
+      default: linstor
+    isDefault:
+      type: boolean
+      title: Set as Default StorageClass
+      default: true
+    replicaCount:
+      type: integer
+      title: Replica Count
+      minimum: 1
+      maximum: 4
+      default: 2
+    enableSnapshots:
+      type: boolean
+      title: Enable VolumeSnapshotClass
+      description: "Creates VolumeSnapshotClass for fast VM disk cloning via DRBD snapshots"
+      default: true
+
+uiSchema:
+  storageMode:
+    ui:widget: select
+  replicaCount:
+    ui:widget: updown
+  talosCompatibility:
+    ui:help: "Enable for Talos Linux clusters with DRBD system extension"

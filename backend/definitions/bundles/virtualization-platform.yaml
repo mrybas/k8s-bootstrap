@@ -1,0 +1,588 @@
+# Virtualization Platform Bundle
+# Complete stack for running VMs on Kubernetes
+# Flexible: CNI options, storage options, ingress options, web UI
+
+id: virtualization-platform
+name: Virtualization Platform
+description: Complete platform for running and managing VMs on Kubernetes — networking, storage, monitoring, and web UI
+icon: "🖥️"
+category: virtualization
+
+# Components included in this bundle
+components:
+  # === CNI - Kube-OVN (always required for VM networking) ===
+  - id: kube-ovn
+    required: true
+    description: Primary CNI with OVN - VPC isolation, IPAM, live migration support
+    
+  # === CNI Chaining (optional - for Kube-OVN + Cilium) ===
+  - id: cilium-cni-chaining
+    required: false
+    default_enabled: true
+    hidden: true
+    description: ConfigMap for Cilium chaining with Kube-OVN
+    depends_on_bundle: cilium
+    
+  # === Cilium (optional - for eBPF policies and observability) ===
+  - id: cilium
+    required: false
+    default_enabled: true
+    description: eBPF network policies and Hubble observability
+    
+  # === Multi-NIC support for VMs ===
+  - id: multus-cni
+    required: true
+    description: Multiple network interfaces for VMs
+
+  # === Cluster DNS (required for empty clusters) ===
+  - id: coredns
+    required: true
+    description: Cluster DNS for service discovery (required for clusters without pre-installed DNS)
+    
+  # === KubeVirt core (always required) ===
+  - id: kubevirt-crds
+    required: true
+    hidden: true
+    description: KubeVirt CRDs (installed first)
+    
+  - id: kubevirt-operator
+    required: true
+    description: VM management operator
+    depends_on_bundle: kubevirt-crds
+    
+  - id: cdi-crds
+    required: true
+    hidden: true
+    description: CDI CRDs (installed first)
+    
+  - id: kubevirt-cdi
+    required: true
+    description: Disk image import and management
+    depends_on_bundle: cdi-crds
+    
+  # === Storage - Longhorn or Linstor ===
+  - id: longhorn
+    required: false
+    default_enabled: true
+    hidden: true
+    description: Distributed block storage (simple setup, includes UI)
+    exclusive_group: storage
+    
+  - id: piraeus-crds
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Piraeus/Linstor CRDs
+    
+  - id: piraeus-operator
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Linstor operator (high performance DRBD storage)
+    exclusive_group: storage
+    depends_on_bundle: piraeus-crds
+    
+  - id: linstor-cluster
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Linstor cluster configuration
+    depends_on_bundle: piraeus-operator
+    
+  - id: linstor-storage-pool
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Storage pool configuration
+    depends_on_bundle: linstor-cluster
+    
+  # === Load Balancer - MetalLB (optional, for bare-metal) ===
+  - id: metallb
+    required: false
+    default_enabled: true
+    description: LoadBalancer for bare-metal (disable for cloud/managed K8s)
+    
+  - id: metallb-config
+    required: false
+    default_enabled: true
+    hidden: true
+    description: MetalLB IP pool configuration
+    depends_on_bundle: metallb
+    
+  # === Ingress Controllers (choose one or none) ===
+  - id: ingress-nginx
+    required: false
+    default_enabled: true
+    hidden: true
+    description: NGINX Ingress controller
+    exclusive_group: ingress
+    
+  - id: ingress-traefik
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Traefik Ingress controller
+    exclusive_group: ingress
+    
+  # === Optional components ===
+  - id: snapshot-controller
+    required: false
+    default_enabled: true
+    description: Volume snapshots for VMs
+
+  # === Web UI (optional) ===
+  - id: kubevirt-ui
+    required: false
+    default_enabled: true
+    description: Web interface for managing VMs (VNC console, live migration, snapshots)
+
+  # === Backup (optional) ===
+  - id: velero
+    required: false
+    default_enabled: false
+    description: Backup and disaster recovery for VMs (with kubevirt-velero-plugin)
+
+  # === Monitoring Stack (optional) ===
+  - id: prometheus-operator-crds
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Prometheus CRDs (required for Victoria Metrics)
+    
+  - id: victoria-metrics-crds
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Victoria Metrics CRDs
+    depends_on_bundle: prometheus-operator-crds
+    
+  - id: victoria-metrics-operator
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Victoria Metrics operator
+    depends_on_bundle: victoria-metrics-crds
+    
+  - id: victoria-metrics-single
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Victoria Metrics single instance
+    depends_on_bundle: victoria-metrics-operator
+    
+  - id: alloy
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Metrics collection agent (replaces vmagent)
+    depends_on_bundle: victoria-metrics-single
+    
+  - id: kube-state-metrics
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Kubernetes object state metrics
+    depends_on_bundle: prometheus-operator-crds
+    
+  - id: grafana-operator
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Grafana operator
+    depends_on_bundle: prometheus-operator-crds
+    
+  - id: grafana-instance
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Grafana dashboards
+    depends_on_bundle: grafana-operator
+
+# CNI Bootstrap configuration
+cni_bootstrap:
+  enabled: true
+  component: kube-ovn
+  description: |
+    For clusters without CNI (e.g., Talos with cni: none),
+    installs Cilium (chaining mode) + Kube-OVN to make nodes Ready.
+    Cilium is installed first as passive eBPF layer, then Kube-OVN as primary CNI.
+
+# DNS Bootstrap configuration
+dns_bootstrap:
+  enabled: true
+  component: coredns
+  description: |
+    For clusters without DNS (empty clusters),
+    CoreDNS will be installed before Flux so it can resolve Git repo hostnames.
+
+# Parameters for user configuration
+parameters:
+  # ==================== ENVIRONMENT ====================
+  - id: environment
+    name: Environment Type
+    description: Where is your cluster running?
+    type: select
+    options:
+      - value: bare-metal
+        label: Bare-metal / On-prem
+      - value: cloud
+        label: Cloud (managed K8s - GKE/EKS/AKS)
+    default: bare-metal
+    required: true
+    category: environment
+    
+  # ==================== CNI ====================
+  - id: cni_mode
+    name: CNI Configuration
+    description: Choose CNI setup based on your needs
+    type: select
+    options:
+      - value: kube-ovn-cilium
+        label: Kube-OVN + Cilium (recommended - full features)
+      - value: kube-ovn-only
+        label: Kube-OVN only (Cilium already installed or not needed)
+    default: kube-ovn-cilium
+    required: true
+    category: networking
+
+  - id: bootstrap_cni
+    name: Bootstrap CNI
+    description: Install CNI directly before Flux (required for clusters without CNI)
+    type: boolean
+    default: true
+    required: false
+    category: networking
+    show_if: cni_mode == "kube-ovn-cilium"
+
+  # ==================== INGRESS ====================
+  - id: ingress_controller
+    name: Ingress Controller
+    description: Choose ingress controller for web UIs
+    type: select
+    options:
+      - value: nginx
+        label: NGINX (recommended)
+      - value: traefik
+        label: Traefik
+      - value: none
+        label: None (already have one or not needed)
+    default: nginx
+    required: true
+    category: ingress
+
+  # MetalLB IP for Ingress (single IP, not range)
+  - id: ingress_ip
+    name: Ingress IP Address
+    description: "Single IP for ingress controller LoadBalancer (from your network)"
+    type: string
+    default: ""
+    required: true
+    category: ingress
+    show_if: environment == "bare-metal" && ingress_controller != "none"
+    placeholder: "192.168.1.100"
+
+  # Base domain (auto-generated from IP)
+  - id: base_domain
+    name: Base Domain
+    description: "Base domain for services (leave empty to auto-generate from IP.nip.io)"
+    type: string
+    default: ""
+    required: false
+    category: ingress
+    show_if: ingress_controller != "none"
+
+  # ==================== INGRESS HOSTS ====================
+  - id: enable_longhorn_ingress
+    name: Longhorn UI Ingress
+    description: "Enable web UI for Longhorn storage (longhorn.{domain})"
+    type: boolean
+    default: true
+    category: ingress
+    show_if: ingress_controller != "none" && storage_backend == "longhorn"
+
+  - id: enable_hubble_ingress
+    name: Hubble UI Ingress
+    description: "Enable network observability dashboard (hubble.{domain})"
+    type: boolean
+    default: true
+    category: ingress
+    show_if: ingress_controller != "none" && cni_mode == "kube-ovn-cilium"
+
+  # ==================== STORAGE ====================
+  - id: storage_backend
+    name: Storage Backend
+    description: Choose distributed storage solution
+    type: select
+    options:
+      - value: longhorn
+        label: Longhorn (simple, includes UI)
+      - value: linstor
+        label: Linstor (high performance DRBD)
+    default: longhorn
+    required: true
+    category: storage
+
+  - id: storage_replicas
+    name: Storage Replicas
+    description: Number of replicas for each volume (2 recommended for HA)
+    type: select
+    options:
+      - "1"
+      - "2"
+      - "3"
+    default: "2"
+    required: true
+    category: storage
+
+  # ==================== LINSTOR SPECIFIC ====================
+  - id: linstor_storage_mode
+    name: Linstor Storage Mode
+    description: How to configure Linstor storage
+    type: select
+    options:
+      - value: file_auto
+        label: "File Pool (auto) - uses all available space on OS disk"
+      - value: file_limited
+        label: "File Pool (limited) - specify maximum size"
+      - value: lvm
+        label: "LVM - dedicated disk(s) for storage"
+    default: file_limited
+    required: true
+    category: storage
+    show_if: storage_backend == "linstor"
+
+  - id: linstor_pool_directory
+    name: Pool Directory
+    description: "Directory for File Thin Pool"
+    type: string
+    default: "/var/lib/linstor-pools"
+    required: false
+    category: storage
+    show_if: storage_backend == "linstor" && linstor_storage_mode != "lvm"
+
+  - id: linstor_pool_size
+    name: Pool Size
+    description: "Maximum size for File Pool (e.g., 100Gi, 500Gi)"
+    type: string
+    default: "100Gi"
+    required: true
+    category: storage
+    show_if: storage_backend == "linstor" && linstor_storage_mode == "file_limited"
+
+  - id: linstor_lvm_devices
+    name: LVM Devices
+    description: "Comma-separated device paths (e.g., /dev/sdb,/dev/sdc)"
+    type: string
+    default: ""
+    required: true
+    category: storage
+    show_if: storage_backend == "linstor" && linstor_storage_mode == "lvm"
+    placeholder: "/dev/sdb,/dev/nvme1n1"
+
+  # ==================== KUBEVIRT UI ====================
+  - id: enable_kubevirt_ui
+    name: Enable KubeVirt UI
+    description: Deploy web interface for managing VMs
+    type: boolean
+    default: false
+    category: virtualization
+
+  - id: enable_kubevirt_ui_ingress
+    name: KubeVirt UI Ingress
+    description: "Enable web UI ingress (kubevirt-ui.{domain})"
+    type: boolean
+    default: true
+    category: ingress
+    show_if: enable_kubevirt_ui == true && ingress_controller != "none"
+
+  # ==================== BACKUP ====================
+  - id: enable_backup
+    name: Enable VM Backup
+    description: Deploy Velero with kubevirt-velero-plugin for VM backups
+    type: boolean
+    default: false
+    category: backup
+
+  # ==================== OBSERVABILITY ====================
+  - id: enable_hubble
+    name: Enable Hubble
+    description: Network observability (metrics, flows, service map)
+    type: boolean
+    default: true
+    category: observability
+    show_if: cni_mode == "kube-ovn-cilium"
+
+  - id: enable_snapshots
+    name: Enable Volume Snapshots
+    description: Support for VM snapshots
+    type: boolean
+    default: true
+    category: storage
+
+  # ==================== MONITORING ====================
+  - id: enable_monitoring
+    name: Enable Monitoring
+    description: Deploy Victoria Metrics + Grafana for cluster monitoring
+    type: boolean
+    default: false
+    category: observability
+
+  - id: metrics_retention
+    name: Metrics Retention
+    description: How long to keep metrics data
+    type: select
+    options:
+      - value: "7d"
+        label: "7 days"
+      - value: "14d"
+        label: "14 days (recommended)"
+      - value: "30d"
+        label: "30 days"
+      - value: "60d"
+        label: "60 days"
+      - value: "90d"
+        label: "90 days"
+    default: "14d"
+    required: true
+    category: observability
+    show_if: enable_monitoring == true
+
+  - id: metrics_storage_enabled
+    name: Persistent Metrics Storage
+    description: Store metrics on persistent volume (recommended for production)
+    type: boolean
+    default: true
+    category: observability
+    show_if: enable_monitoring == true
+
+  - id: metrics_storage_size
+    name: Metrics Storage Size
+    description: Storage size for metrics (20Gi for ~14 days of small cluster)
+    type: select
+    options:
+      - "10Gi"
+      - "20Gi"
+      - "50Gi"
+      - "100Gi"
+    default: "20Gi"
+    required: true
+    category: observability
+    show_if: enable_monitoring == true && metrics_storage_enabled == true
+
+  - id: enable_grafana_ingress
+    name: Grafana UI Ingress
+    description: "Enable web UI for Grafana dashboards (grafana.{domain})"
+    type: boolean
+    default: true
+    category: ingress
+    show_if: enable_monitoring == true && ingress_controller != "none"
+
+  - id: enable_vmui_ingress
+    name: Victoria Metrics UI Ingress
+    description: "Enable web UI for VM queries (vmui.{domain})"
+    type: boolean
+    default: false
+    category: ingress
+    show_if: enable_monitoring == true && ingress_controller != "none"
+
+# Parameter categories (for wizard grouping)
+parameter_categories:
+  - id: environment
+    name: Environment
+    description: Cluster environment settings
+    order: 1
+  - id: networking
+    name: Networking
+    description: CNI and network settings
+    order: 2
+  - id: ingress
+    name: Ingress & Domains
+    description: Ingress controller and domain settings
+    order: 3
+  - id: storage
+    name: Storage
+    description: Storage backend settings
+    order: 4
+  - id: backup
+    name: Backup
+    description: VM backup and disaster recovery
+    order: 5
+  - id: observability
+    name: Observability
+    description: Monitoring and observability
+    order: 6
+
+# Important notes for user
+notes:
+  - title: Environment Selection
+    content: |
+      - Bare-metal: Includes MetalLB for LoadBalancer services
+      - Cloud: Uses cloud provider's LoadBalancer (disable MetalLB)
+      
+  - title: CNI Options
+    content: |
+      - Kube-OVN + Cilium: Full features (VPCs, eBPF policies, Hubble)
+      - Kube-OVN only: If Cilium already installed or using native policies
+      
+  - title: Talos Configuration
+    content: |
+      For Talos Linux, ensure your machine config has:
+      - cluster.network.cni.name: none
+      - cluster.proxy.disabled: true (recommended)
+      
+  - title: Talos - Kube-OVN Requirements
+    content: |
+      Kube-OVN on Talos requires cni.CNI_BIN_DIR: /opt/cni/bin in values
+      
+  - title: Talos - DRBD/Linstor Requirements
+    content: |
+      For Linstor storage, ensure DRBD system extension is installed:
+      - extensions.talos.dev/drbd should appear in node labels
+      
+  - title: Storage - Linstor LVM
+    content: |
+      For LVM mode, ensure:
+      - DRBD extension is installed (Talos)
+      - Specified devices are empty/unmounted
+      - Devices exist on ALL nodes that will store data
+
+# Installation order
+install_order:
+  # CNI: Cilium (chaining) first, then ConfigMap, then Kube-OVN as primary
+  - cilium
+  - cilium-cni-chaining
+  - kube-ovn
+  - multus-cni
+  # Cluster DNS (after CNI, before everything that needs DNS)
+  - coredns
+  # Load Balancer & Ingress
+  - metallb
+  - metallb-config
+  - ingress-nginx
+  - ingress-traefik
+  # Storage (CRDs first)
+  - snapshot-controller
+  - longhorn
+  - piraeus-crds
+  - piraeus-operator
+  - linstor-cluster
+  - linstor-storage-pool
+  # Monitoring (CRDs first)
+  - prometheus-operator-crds
+  - victoria-metrics-crds
+  - victoria-metrics-operator
+  - victoria-metrics-single
+  - alloy
+  - kube-state-metrics
+  - grafana-operator
+  - grafana-instance
+  # Backup (CRDs first)
+  - velero-crds
+  - velero
+  # KubeVirt (CRDs first)
+  - kubevirt-crds
+  - kubevirt-operator
+  - cdi-crds
+  - kubevirt-cdi
+  # Web UI (after KubeVirt)
+  - kubevirt-ui

@@ -1,0 +1,20 @@
+apiVersion: v2
+name: kamaji-crds
+version: 0.1.0
+description: |
+  Kamaji CRDs (TenantControlPlane, DataStore)
+
+  Custom Resource Definitions for Kamaji tenant control plane manager.
+  Must be installed before the operator.
+
+  Source: https://github.com/clastix/kamaji/tree/master/charts/kamaji/crds
+type: application
+home: https://kamaji.clastix.io/
+sources:
+  - https://github.com/clastix/kamaji
+keywords:
+  - kamaji
+  - crds
+  - multi-tenancy
+maintainers:
+  - name: k8s-bootstrap

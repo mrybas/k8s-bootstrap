@@ -4,13 +4,18 @@ Chart Generator - Vendors upstream charts via helm pull
 NOTE: In the new architecture, charts only contain DEFAULT values.
 User values are stored in HelmRelease manifests (manifests/releases/<category>/<component>.yaml)
 """
-import os
+import logging
 import subprocess
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Tuple, Optional
 import yaml
+
+from app.core.utils import deep_merge
+from app.core.config import settings
+
+logger = logging.getLogger("k8s_bootstrap.chart_generator")
 
 
 class ChartGenerator:
@@ -53,9 +58,9 @@ class ChartGenerator:
             "dependencies": [{"name": name, "version": version, "repository": f"file://charts/{name}"}]
         })
         
-        # Wrapped values
-        merged = self._merge(defn.get("defaultValues", {}), values, raw)
-        self._yaml(path / "values.yaml", {name: merged})
+        # Values.yaml is intentionally empty - all configuration lives in HelmRelease
+        # This follows GitOps best practice: chart is the template, HelmRelease is the config
+        self._yaml(path / "values.yaml", {})
         
         # Vendor the actual chart (or create placeholder)
         charts_dir = path / "charts"
@@ -67,6 +72,22 @@ class ChartGenerator:
         else:
             # Create placeholder - user will run vendor-charts.sh locally
             self._placeholder(charts_dir, name, version, repo, None)
+        
+        # Copy templates from definitions/charts/<id>/templates/ if exists
+        # settings.definitions_path points to definitions/components/, charts are at definitions/charts/
+        chart_templates_path = settings.definitions_path.parent / "charts" / defn["id"] / "templates"
+        if chart_templates_path.exists():
+            tpl = path / "templates"
+            tpl.mkdir(exist_ok=True)
+            for tpl_file in chart_templates_path.iterdir():
+                if tpl_file.is_file():
+                    shutil.copy(tpl_file, tpl / tpl_file.name)
+        
+        # Write inline templates from definition (can override file-based)
+        for tpl_name, content in defn.get("templates", {}).items():
+            tpl = path / "templates"
+            tpl.mkdir(exist_ok=True)
+            (tpl / tpl_name).write_text(content)
     
     def _vendor(self, repo: str, name: str, version: str, out: Path, chart_id: str):
         """Download chart via helm pull"""
@@ -132,10 +153,22 @@ Version: {ver}
             "apiVersion": "v2", "name": defn["id"], "version": "0.0.1",
             "description": defn.get("description", "")
         })
-        self._yaml(path / "values.yaml", self._merge(defn.get("defaultValues", {}), values, raw))
+        # Values.yaml is intentionally empty - all configuration lives in HelmRelease
+        self._yaml(path / "values.yaml", {})
         
         tpl = path / "templates"
         tpl.mkdir(exist_ok=True)
+        
+        # First, copy templates from charts directory if exists
+        # This allows complex charts like piraeus-crds to have templates in files
+        # settings.definitions_path points to definitions/components/, charts are at definitions/charts/
+        chart_templates_path = settings.definitions_path.parent / "charts" / defn["id"] / "templates"
+        if chart_templates_path.exists():
+            for tpl_file in chart_templates_path.iterdir():
+                if tpl_file.is_file():
+                    shutil.copy(tpl_file, tpl / tpl_file.name)
+        
+        # Then, write inline templates from definition (can override file-based)
         for name, content in defn.get("templates", {}).items():
             (tpl / name).write_text(content)
         
@@ -153,17 +186,18 @@ metadata:
 ''')
     
     def _merge(self, defaults: Dict, user: Dict, raw: str) -> Dict:
-        result = self._deep(defaults.copy(), user)
+        """Merge default values with user values and raw overrides."""
+        result = deep_merge(defaults.copy(), user)
         if raw and raw.strip():
             # Raw overrides should already be validated by API layer
             # but we still parse here - any error at this point is a bug
             r = yaml.safe_load(raw)
             if isinstance(r, dict):
-                result = self._deep(result, r)
+                result = deep_merge(result, r)
         return result
     
     @staticmethod
-    def validate_raw_yaml(raw: str, component_id: str) -> tuple[bool, str | None]:
+    def validate_raw_yaml(raw: str, component_id: str) -> Tuple[bool, Optional[str]]:
         """
         Validate raw YAML overrides.
         
@@ -186,15 +220,6 @@ metadata:
                 mark = e.problem_mark
                 return False, f"Invalid YAML in raw overrides for '{component_id}': {e.problem} at line {mark.line + 1}, column {mark.column + 1}"
             return False, f"Invalid YAML in raw overrides for '{component_id}': {str(e)}"
-    
-    def _deep(self, base: Dict, over: Dict) -> Dict:
-        result = base.copy()
-        for k, v in over.items():
-            if k in result and isinstance(result[k], dict) and isinstance(v, dict):
-                result[k] = self._deep(result[k], v)
-            else:
-                result[k] = v
-        return result
     
     def _yaml(self, path: Path, data: dict):
         with open(path, 'w') as f:

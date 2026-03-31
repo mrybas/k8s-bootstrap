@@ -1,0 +1,125 @@
+# Containerized Data Importer (CDI)
+# Data volumes management for KubeVirt
+
+id: kubevirt-cdi
+name: CDI (Containerized Data Importer)
+description: Import, upload, and clone VM disk images for KubeVirt - PVC management for virtual machines
+category: virtualization
+categoryName: Virtualization
+categoryDescription: Virtual machine management
+icon: "💿"
+priority: 20
+isInstance: true
+instanceOf: kubevirt-operator
+multiInstance: false
+requiresOperator: kubevirt-operator
+docsUrl: https://github.com/kubevirt/containerized-data-importer
+
+# CDI doesn't provide official Helm chart - use kubectl apply
+chartType: manifest
+namespace: o0-cdi
+createNamespace: true
+podSecurityEnforce: privileged  # Required for data import pods
+timeout: 10m
+
+version: "1.64.0"
+appVersion: "v1.64.0"
+
+# Official manifest URLs
+manifests:
+  - name: cdi-operator
+    url: https://github.com/kubevirt/containerized-data-importer/releases/download/v1.64.0/cdi-operator.yaml
+  - name: cdi-cr
+    url: https://github.com/kubevirt/containerized-data-importer/releases/download/v1.64.0/cdi-cr.yaml
+
+dependsOn:
+  - cdi-crds
+  - kubevirt-operator
+
+defaultValues:
+  # Operator settings
+  operator:
+    replicas: 1
+  
+  # CDI configuration
+  config:
+    uploadProxyURLOverride: ""
+    scratchSpaceStorageClass: ""
+    podResourceRequirements:
+      requests:
+        cpu: "100m"
+        memory: "60Mi"
+      limits:
+        cpu: "750m"
+        memory: "800Mi"
+    featureGates:
+      - HonorWaitForFirstConsumer
+
+jsonSchema:
+  type: object
+  properties:
+    operator:
+      type: object
+      title: Operator Settings
+      properties:
+        replicas:
+          type: integer
+          title: Replicas
+          minimum: 1
+          maximum: 3
+          default: 1
+    config:
+      type: object
+      title: CDI Configuration
+      properties:
+        uploadProxyURLOverride:
+          type: string
+          title: Upload Proxy URL
+          description: Override URL for virtctl upload
+          default: ""
+        scratchSpaceStorageClass:
+          type: string
+          title: Scratch Space Storage Class
+          description: StorageClass for temporary scratch space
+          default: ""
+        featureGates:
+          type: array
+          title: Feature Gates
+          items:
+            type: string
+            enum:
+              - HonorWaitForFirstConsumer
+              - DataVolumeClaimAdoption
+          default:
+            - HonorWaitForFirstConsumer
+        podResourceRequirements:
+          type: object
+          title: Import Pod Resources
+          properties:
+            requests:
+              type: object
+              properties:
+                cpu:
+                  type: string
+                  default: "100m"
+                memory:
+                  type: string
+                  default: "60Mi"
+            limits:
+              type: object
+              properties:
+                cpu:
+                  type: string
+                  default: "750m"
+                memory:
+                  type: string
+                  default: "800Mi"
+
+uiSchema:
+  operator:
+    ui:collapsed: true
+  config:
+    featureGates:
+      ui:widget: checkboxes
+    podResourceRequirements:
+      ui:collapsed: true

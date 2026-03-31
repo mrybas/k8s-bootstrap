@@ -1,0 +1,48 @@
+# Piraeus Operator - LINSTOR for Kubernetes
+# High-performance distributed storage with DRBD
+# Docs: https://piraeus.io/docs/stable/how-to/helm/
+
+id: piraeus-operator
+name: Piraeus Operator (Linstor)
+description: High-performance distributed block storage using DRBD - ideal for VMs and databases
+category: storage
+categoryName: Storage
+categoryDescription: Storage solutions
+icon: "🗄️"
+priority: 45
+isOperator: true
+docsUrl: https://piraeus.io/
+
+# Installed from official manifest (like KubeVirt)
+chartType: manifest
+namespace: o0-piraeus
+releaseName: piraeus-operator
+createNamespace: true
+podSecurityEnforce: privileged  # Required for DRBD kernel modules
+timeout: 10m
+
+version: "2.10.4"
+appVersion: "v2.10.4"
+
+# Official manifest URL
+manifests:
+  - name: piraeus-operator
+    url: https://github.com/piraeusdatastore/piraeus-operator/releases/download/v2.10.4/manifest.yaml
+
+dependsOn:
+  - piraeus-crds
+  - snapshot-controller
+
+suggestsInstances:
+  - linstor-cluster
+
+defaultValues:
+  # ServiceMonitor for Linstor controller metrics (requires prometheus-operator-crds)
+  serviceMonitor:
+    enabled: false
+
+jsonSchema:
+  type: object
+  properties: {}
+
+uiSchema: {}

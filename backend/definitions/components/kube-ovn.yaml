@@ -1,0 +1,231 @@
+# Kube-OVN - Advanced CNI with OVN/OVS
+# Primary CNI for overlay networking, VPCs, live migration support
+
+id: kube-ovn
+name: Kube-OVN
+description: Advanced CNI with OVN networking - overlay networks, VPC isolation, IPAM, live migration support for VMs
+category: networking
+categoryName: Networking
+categoryDescription: CNI plugins and advanced networking
+icon: "🔌"
+priority: 10
+docsUrl: https://kubeovn.github.io/docs/
+
+chartType: upstream
+namespace: o0-kube-ovn
+releaseName: kube-ovn
+createNamespace: true
+podSecurityEnforce: privileged  # Required for OVS/OVN (hostNetwork, privileged containers, host paths)
+timeout: 15m
+
+upstream:
+  repository: https://kubeovn.github.io/kube-ovn
+  chartName: kube-ovn
+  version: "1.15.3"
+  appVersion: "v1.15.3"
+
+# No dependencies - Kube-OVN is a standalone CNI
+# Can be used with Cilium for network policies (set ENABLE_NP: false)
+
+defaultValues:
+  # Deploy all kube-ovn resources to the release namespace (not hardcoded kube-system)
+  namespace: o0-kube-ovn
+  
+  # Talos Linux compatibility - CRITICAL for reboot survival
+  DISABLE_MODULES_MANAGEMENT: true  # Talos has modules pre-loaded
+  OPENVSWITCH_DIR: "/var/lib/openvswitch"  # Persistent! (not /run)
+  OVN_DIR: "/var/lib/ovn"  # Persistent! (not /run)
+  
+  # Master node label for OVN control plane
+  MASTER_NODES_LABEL: "node-role.kubernetes.io/control-plane"
+  
+  # CNI configuration
+  cni:
+    CNI_BIN_DIR: /opt/cni/bin  # Required for Talos
+  cni_conf:
+    CNI_CONFIG_PRIORITY: "10"
+    MOUNT_LOCAL_BIN_DIR: false
+  
+  # Network settings
+  networking:
+    NET_STACK: "ipv4"
+    NETWORK_TYPE: "geneve"
+    TUNNEL_TYPE: "geneve"
+    POD_CIDR: "10.16.0.0/16"
+    POD_GATEWAY: "10.16.0.1"
+    SERVICE_CIDR: "10.96.0.0/12"
+    JOIN_CIDR: "100.64.0.0/16"
+    ENABLE_LB: "true"
+    ENABLE_NP: "false"  # Disable - using Cilium for network policies
+    ENABLE_SSL: true
+    ENABLE_NAT_GW: true  # Required for VPC external access via NAT gateway pods
+
+  # Disable network policies - Cilium handles this
+  func:
+    ENABLE_NP: false
+    ENABLE_BIND_LOCAL_IP: "true"
+    ENABLE_MIRROR: "false"
+    HW_OFFLOAD: "false"
+  
+  # HA settings
+  ipv4:
+    POD_CIDR: "10.16.0.0/16"
+    POD_GATEWAY: "10.16.0.1"
+    SVC_CIDR: "10.96.0.0/12"
+    JOIN_CIDR: "100.64.0.0/16"
+
+jsonSchema:
+  type: object
+  properties:
+    networking:
+      type: object
+      title: Network Configuration
+      properties:
+        NETWORK_TYPE:
+          type: string
+          title: Network Type
+          description: Overlay network type
+          enum:
+            - geneve
+            - vxlan
+            - stt
+          default: geneve
+        TUNNEL_TYPE:
+          type: string
+          title: Tunnel Type
+          enum:
+            - geneve
+            - vxlan
+            - stt
+          default: geneve
+        POD_CIDR:
+          type: string
+          title: Pod CIDR
+          description: CIDR for Pod network
+          default: "10.16.0.0/16"
+        POD_GATEWAY:
+          type: string
+          title: Pod Gateway
+          default: "10.16.0.1"
+        SERVICE_CIDR:
+          type: string
+          title: Service CIDR
+          default: "10.96.0.0/12"
+        JOIN_CIDR:
+          type: string
+          title: Join CIDR
+          description: CIDR for node-to-node communication
+          default: "100.64.0.0/16"
+        ENABLE_LB:
+          type: string
+          title: Enable Load Balancer
+          enum: ["true", "false"]
+          default: "true"
+        ENABLE_NP:
+          type: string
+          title: Enable Network Policies
+          description: Disable if using Cilium for policies
+          enum: ["true", "false"]
+          default: "false"
+        ENABLE_NAT_GW:
+          type: boolean
+          title: Enable NAT Gateway
+          description: Enable VPC NAT gateway for external access from custom VPCs
+          default: true
+    func:
+      type: object
+      title: Advanced Features
+      properties:
+        ENABLE_BIND_LOCAL_IP:
+          type: string
+          title: Bind Local IP
+          enum: ["true", "false"]
+          default: "true"
+        HW_OFFLOAD:
+          type: string
+          title: Hardware Offload
+          description: Enable for SmartNIC hardware offload
+          enum: ["true", "false"]
+          default: "false"
+        ENABLE_MIRROR:
+          type: string
+          title: Enable Traffic Mirror
+          enum: ["true", "false"]
+          default: "false"
+    DISABLE_MODULES_MANAGEMENT:
+      type: string
+      title: Disable Kernel Module Management
+      description: Required for Talos Linux
+      enum: ["true", "false"]
+      default: "true"
+
+uiSchema:
+  networking:
+    ui:order:
+      - NETWORK_TYPE
+      - POD_CIDR
+      - SERVICE_CIDR
+      - JOIN_CIDR
+      - ENABLE_LB
+      - ENABLE_NP
+      - ENABLE_NAT_GW
+  func:
+    ui:collapsed: true
+  DISABLE_MODULES_MANAGEMENT:
+    ui:readonly: true
+
+# Wrapper-level values (not wrapped under upstream chart name)
+# Used by custom ServiceMonitor templates in the wrapper chart
+wrapperValues:
+  serviceMonitor:
+    enabled: false
+    kubeOvnMonitor:
+      enabled: true
+    kubeOvnPinger:
+      enabled: true
+
+# ServiceMonitor templates for the wrapper chart
+templates:
+  servicemonitor.yaml: |
+    {{- if .Values.serviceMonitor.enabled }}
+    {{- if .Values.serviceMonitor.kubeOvnMonitor.enabled }}
+    ---
+    apiVersion: monitoring.coreos.com/v1
+    kind: ServiceMonitor
+    metadata:
+      name: kube-ovn-monitor
+      namespace: o0-kube-ovn
+      labels:
+        app: kube-ovn-monitor
+    spec:
+      namespaceSelector:
+        matchNames:
+          - o0-kube-ovn
+      selector:
+        matchLabels:
+          app: kube-ovn-monitor
+      endpoints:
+        - port: metrics
+          interval: 30s
+    {{- end }}
+    {{- if .Values.serviceMonitor.kubeOvnPinger.enabled }}
+    ---
+    apiVersion: monitoring.coreos.com/v1
+    kind: ServiceMonitor
+    metadata:
+      name: kube-ovn-pinger
+      namespace: o0-kube-ovn
+      labels:
+        app: kube-ovn-pinger
+    spec:
+      namespaceSelector:
+        matchNames:
+          - o0-kube-ovn
+      selector:
+        matchLabels:
+          app: kube-ovn-pinger
+      endpoints:
+        - port: metrics
+          interval: 30s
+    {{- end }}
+    {{- end }}

@@ -1,0 +1,161 @@
+# CloudNativePG PostgreSQL Cluster Instance
+# Creates a PostgreSQL Cluster CR managed by CloudNativePG operator
+# Used as kine backend for Kamaji tenant control planes
+
+id: cnpg-cluster
+name: PostgreSQL Cluster
+description: HA PostgreSQL cluster for Kamaji tenant DataStore (kine backend)
+category: database
+categoryName: Database
+categoryDescription: Database operators and instances
+icon: "🐘"
+priority: 11
+isInstance: true
+instanceOf: cloudnative-pg
+multiInstance: false
+requiresOperator: cloudnative-pg
+docsUrl: https://cloudnative-pg.io/documentation/current/cloudnative-pg.v1/
+
+chartType: custom
+namespace: o0-cnpg
+releaseName: cnpg-cluster
+createNamespace: false
+timeout: 10m
+
+dependsOn:
+  - cloudnative-pg
+
+defaultValues:
+  name: kamaji-postgres
+  instances: 3
+  storage:
+    size: 10Gi
+    storageClass: ""
+  postgresql:
+    max_connections: "300"
+    shared_buffers: "256MB"
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+  backup:
+    enabled: false
+    s3Endpoint: ""
+    s3Bucket: ""
+    s3SecretName: ""
+
+jsonSchema:
+  type: object
+  properties:
+    name:
+      type: string
+      title: Cluster Name
+      default: kamaji-postgres
+    instances:
+      type: integer
+      title: Replicas
+      description: Number of PostgreSQL instances (1, 2, or 3)
+      enum: [1, 2, 3]
+      default: 3
+    storage:
+      type: object
+      title: Storage
+      properties:
+        size:
+          type: string
+          title: Storage Size
+          enum: ["5Gi", "10Gi", "20Gi", "50Gi", "100Gi"]
+          default: "10Gi"
+        storageClass:
+          type: string
+          title: Storage Class
+          description: Leave empty for default
+    postgresql:
+      type: object
+      title: PostgreSQL Settings
+      properties:
+        max_connections:
+          type: string
+          title: Max Connections
+          description: Total connections across all tenants
+          default: "300"
+        shared_buffers:
+          type: string
+          title: Shared Buffers
+          default: "256MB"
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              default: "250m"
+            memory:
+              type: string
+              default: "512Mi"
+        limits:
+          type: object
+          properties:
+            cpu:
+              type: string
+              default: "2000m"
+            memory:
+              type: string
+              default: "2Gi"
+
+uiSchema:
+  postgresql:
+    ui:collapsed: true
+  resources:
+    ui:collapsed: true
+  backup:
+    ui:collapsed: true
+
+templates:
+  cluster.yaml: |
+    apiVersion: postgresql.cnpg.io/v1
+    kind: Cluster
+    metadata:
+      name: {{ .Values.name }}
+    spec:
+      instances: {{ .Values.instances }}
+      storage:
+        size: {{ .Values.storage.size }}
+        {{- if .Values.storage.storageClass }}
+        storageClassName: {{ .Values.storage.storageClass }}
+        {{- end }}
+      bootstrap:
+        initdb:
+          postInitSQL:
+            - "ALTER USER app SUPERUSER;"
+      postgresql:
+        parameters:
+          max_connections: {{ .Values.postgresql.max_connections | quote }}
+          shared_buffers: {{ .Values.postgresql.shared_buffers | quote }}
+      resources:
+        requests:
+          cpu: {{ .Values.resources.requests.cpu }}
+          memory: {{ .Values.resources.requests.memory }}
+        limits:
+          cpu: {{ .Values.resources.limits.cpu }}
+          memory: {{ .Values.resources.limits.memory }}
+      {{- if .Values.backup.enabled }}
+      backup:
+        barmanObjectStore:
+          destinationPath: "s3://{{ .Values.backup.s3Bucket }}/{{ .Values.name }}"
+          endpointURL: {{ .Values.backup.s3Endpoint }}
+          s3Credentials:
+            accessKeyId:
+              name: {{ .Values.backup.s3SecretName }}
+              key: ACCESS_KEY_ID
+            secretAccessKey:
+              name: {{ .Values.backup.s3SecretName }}
+              key: ACCESS_SECRET_KEY
+        retentionPolicy: "7d"
+      {{- end }}

@@ -1,0 +1,149 @@
+# Cluster API Providers
+# Declarative provider configuration for CAPI Operator
+# Core + Bootstrap always installed; ControlPlane and Infrastructure are toggleable
+# Docs: https://github.com/kubernetes-sigs/cluster-api-operator
+
+id: capi-providers
+name: Cluster API Providers
+description: Core, Bootstrap, ControlPlane (Kamaji), and Infrastructure (KubeVirt) providers for Cluster API
+category: multi-tenancy
+categoryName: Multi-tenancy
+categoryDescription: Tenant isolation and virtual clusters
+icon: "🔌"
+priority: 13
+isInstance: true
+instanceOf: capi-operator
+multiInstance: false
+requiresOperator: capi-operator
+docsUrl: https://github.com/kubernetes-sigs/cluster-api-operator
+
+chartType: custom
+namespace: o0-capi
+releaseName: capi-providers
+createNamespace: false
+timeout: 15m
+
+dependsOn:
+  - capi-operator
+  - cert-manager
+
+defaultValues:
+  core:
+    version: v1.9.4
+  bootstrap:
+    kubeadm:
+      version: v1.9.4
+  controlPlane:
+    kamaji:
+      enabled: true
+      version: v0.15.4
+  infrastructure:
+    kubevirt:
+      enabled: true
+      version: v0.11.2
+
+jsonSchema:
+  type: object
+  properties:
+    core:
+      type: object
+      title: Core Provider
+      properties:
+        version:
+          type: string
+          title: CAPI Core Version
+          default: v1.9.4
+    bootstrap:
+      type: object
+      title: Bootstrap Provider
+      properties:
+        kubeadm:
+          type: object
+          properties:
+            version:
+              type: string
+              title: Kubeadm Bootstrap Version
+              default: v1.9.4
+    controlPlane:
+      type: object
+      title: Control Plane Providers
+      properties:
+        kamaji:
+          type: object
+          title: Kamaji
+          properties:
+            enabled:
+              type: boolean
+              title: Enable Kamaji CP Provider
+              default: true
+            version:
+              type: string
+              title: Version
+              default: v0.15.4
+    infrastructure:
+      type: object
+      title: Infrastructure Providers
+      properties:
+        kubevirt:
+          type: object
+          title: KubeVirt
+          properties:
+            enabled:
+              type: boolean
+              title: Enable KubeVirt Infra Provider
+              default: true
+            version:
+              type: string
+              title: Version
+              default: v0.11.2
+
+uiSchema:
+  core:
+    ui:collapsed: true
+  bootstrap:
+    ui:collapsed: true
+  controlPlane:
+    ui:collapsed: false
+  infrastructure:
+    ui:collapsed: false
+
+templates:
+  core-provider.yaml: |
+    apiVersion: operator.cluster.x-k8s.io/v1alpha2
+    kind: CoreProvider
+    metadata:
+      name: cluster-api
+      namespace: o0-capi
+    spec:
+      version: {{ .Values.core.version }}
+
+  bootstrap-kubeadm.yaml: |
+    apiVersion: operator.cluster.x-k8s.io/v1alpha2
+    kind: BootstrapProvider
+    metadata:
+      name: kubeadm
+      namespace: o0-capi
+    spec:
+      version: {{ .Values.bootstrap.kubeadm.version }}
+
+  controlplane-kamaji.yaml: |
+    {{- if .Values.controlPlane.kamaji.enabled }}
+    apiVersion: operator.cluster.x-k8s.io/v1alpha2
+    kind: ControlPlaneProvider
+    metadata:
+      name: kamaji
+      namespace: o0-capi
+    spec:
+      version: {{ .Values.controlPlane.kamaji.version }}
+    {{- end }}
+
+  infra-kubevirt.yaml: |
+    {{- if .Values.infrastructure.kubevirt.enabled }}
+    apiVersion: operator.cluster.x-k8s.io/v1alpha2
+    kind: InfrastructureProvider
+    metadata:
+      name: kubevirt
+      namespace: o0-capi
+    spec:
+      version: {{ .Values.infrastructure.kubevirt.version }}
+    {{- end }}

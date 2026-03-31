@@ -1,0 +1,34 @@
+# Kamaji CRDs - Custom Resource Definitions for Kamaji
+# Installs DataStore and TenantControlPlane CRDs before the operator
+# Uses custom chart with CRDs from operator source (includes status fields, no webhooks)
+# Docs: https://kamaji.clastix.io/
+
+id: kamaji-crds
+name: Kamaji CRDs
+description: Custom Resource Definitions for Kamaji tenant control plane manager
+category: crds
+categoryName: CRDs
+categoryDescription: Custom Resource Definitions
+icon: "📋"
+priority: 8
+hidden: true
+autoInclude:
+  when: [kamaji]
+docsUrl: https://kamaji.clastix.io/
+
+chartType: custom
+namespace: o0-crds
+releaseName: kamaji-crds
+createNamespace: false
+timeout: 5m
+
+dependsOn:
+  - namespaces
+
+defaultValues: {}
+
+jsonSchema:
+  type: object
+  properties: {}
+
+uiSchema: {}

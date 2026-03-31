@@ -16,7 +16,7 @@ multiInstance: true
 requiresOperator: rook-ceph-operator
 
 chartType: upstream
-namespace: rook-ceph
+namespace: o0-rook-ceph
 releaseName: rook-ceph-cluster
 createNamespace: false
 timeout: 15m
@@ -24,8 +24,8 @@ timeout: 15m
 upstream:
   repository: https://charts.rook.io/release
   chartName: rook-ceph-cluster
-  version: "v1.18.9"
-  appVersion: "1.16.0"
+  version: "v1.19.1"
+  appVersion: "1.19.1"
 
 dependsOn:
   - rook-ceph-operator

@@ -1,0 +1,94 @@
+# Kamaji - Hosted Control Plane Manager for Kubernetes
+# Creates tenant Kubernetes clusters as Pods (API server + controller-manager + scheduler)
+# Supports etcd, PostgreSQL (kine), MySQL, NATS as DataStore backends
+# Docs: https://kamaji.clastix.io/
+
+id: kamaji
+name: Kamaji
+description: Tenant control plane manager - creates virtual Kubernetes clusters as lightweight Pods with shared or dedicated DataStores
+category: multi-tenancy
+categoryName: Multi-tenancy
+categoryDescription: Tenant isolation and virtual clusters
+icon: "🏗️"
+priority: 10
+isOperator: true
+operatorFor: tenant-control-plane
+docsUrl: https://kamaji.clastix.io/
+
+chartType: upstream
+namespace: o0-kamaji
+releaseName: kamaji
+createNamespace: true
+timeout: 5m
+
+upstream:
+  repository: https://clastix.github.io/charts
+  chartName: kamaji
+  version: "0.0.0+latest"
+
+# Kamaji requires cert-manager for webhook TLS
+requiresCrds:
+  - cert-manager-crds
+
+dependsOn:
+  - kamaji-crds
+  - cert-manager
+
+defaultValues:
+  image:
+    tag: 26.3.2-edge
+  # Disable built-in etcd - we use PostgreSQL via kine
+  etcd:
+    deploy: false
+  # Prevent kamaji-etcd subchart from creating default etcd DataStore CR
+  # (our kamaji-datastore component creates PostgreSQL DataStore instead)
+  kamaji-etcd:
+    datastore:
+      enabled: false
+  # CRDs installed separately via kamaji-crds component
+  crds:
+    install: false
+
+jsonSchema:
+  type: object
+  properties:
+    etcd:
+      type: object
+      title: Built-in etcd
+      properties:
+        deploy:
+          type: boolean
+          title: Deploy built-in etcd
+          description: "Disable if using external DataStore (PostgreSQL/MySQL)"
+          default: false
+    replicaCount:
+      type: integer
+      title: Operator Replicas
+      minimum: 1
+      maximum: 3
+      default: 1
+
+uiSchema:
+  etcd:
+    deploy:
+      ui:help: "Disable when using CloudNativePG PostgreSQL as DataStore backend (recommended)"
+
+# ServiceMonitor for Kamaji operator
+extraResources:
+  - apiVersion: monitoring.coreos.com/v1
+    kind: ServiceMonitor
+    metadata:
+      name: kamaji
+      namespace: o0-kamaji
+      labels:
+        app: kamaji
+    spec:
+      namespaceSelector:
+        matchNames:
+          - o0-kamaji
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: kamaji
+      endpoints:
+        - port: metrics
+          interval: 30s

@@ -1,0 +1,54 @@
+# Cluster API Operator
+# Meta-operator that manages all CAPI providers (Core, Bootstrap, ControlPlane, Infrastructure)
+# Install once, then add providers declaratively via CRs
+# Docs: https://github.com/kubernetes-sigs/cluster-api-operator
+
+id: capi-operator
+name: Cluster API Operator
+description: Manages Cluster API providers lifecycle - install once, add providers via CRs
+category: multi-tenancy
+categoryName: Multi-tenancy
+categoryDescription: Tenant isolation and virtual clusters
+icon: "🔧"
+priority: 12
+isOperator: true
+operatorFor: cluster-api-providers
+docsUrl: https://github.com/kubernetes-sigs/cluster-api-operator
+
+chartType: upstream
+namespace: o0-capi
+releaseName: capi-operator
+createNamespace: true
+timeout: 5m
+
+upstream:
+  repository: https://kubernetes-sigs.github.io/cluster-api-operator
+  chartName: cluster-api-operator
+  version: "0.25.0"
+
+# CAPI Operator requires cert-manager for webhook TLS
+requiresCrds:
+  - cert-manager-crds
+
+dependsOn:
+  - cert-manager
+
+defaultValues:
+  # Don't install providers via helm values - we use separate CRs
+  # This avoids the --wait requirement
+  {}
+
+jsonSchema:
+  type: object
+  properties:
+    logLevel:
+      type: integer
+      title: Log Level
+      description: "Operator log verbosity (0-5)"
+      minimum: 0
+      maximum: 5
+      default: 0
+
+uiSchema:
+  logLevel:
+    ui:help: "Increase for debugging provider installations"

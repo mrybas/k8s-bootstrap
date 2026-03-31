@@ -12,7 +12,7 @@ priority: 20
 docsUrl: https://kubernetes.github.io/ingress-nginx/
 
 chartType: upstream
-namespace: ingress-nginx
+namespace: o0-ingress-nginx
 releaseName: ingress-nginx
 createNamespace: true
 timeout: 5m
@@ -21,7 +21,7 @@ timeout: 5m
 upstream:
   repository: https://kubernetes.github.io/ingress-nginx
   chartName: ingress-nginx
-  version: "4.14.1"
+  version: "4.14.3"
   appVersion: "1.9.6"
 
 # Dependencies
@@ -32,12 +32,16 @@ dependsOn:
 defaultValues:
   controller:
     replicaCount: 2
+    ingressClassResource:
+      default: true  # Make nginx the default IngressClass
     service:
       type: ClusterIP
     metrics:
       enabled: true
       serviceMonitor:
-        enabled: false
+        enabled: true
+    extraArgs:
+      enable-ssl-passthrough: ""
     admissionWebhooks:
       enabled: true
     config:

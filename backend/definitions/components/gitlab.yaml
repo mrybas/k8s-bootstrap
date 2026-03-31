@@ -12,7 +12,7 @@ priority: 50
 docsUrl: https://docs.gitlab.com/charts/
 
 chartType: upstream
-namespace: gitlab
+namespace: o0-gitlab
 releaseName: gitlab
 createNamespace: true
 timeout: 20m
@@ -20,8 +20,8 @@ timeout: 20m
 upstream:
   repository: https://charts.gitlab.io/
   chartName: gitlab
-  version: "9.7.1"
-  appVersion: "17.7.0"
+  version: "9.8.3"
+  appVersion: "17.8.3"
 
 dependsOn: []
 

@@ -11,9 +11,10 @@ docsUrl: https://metallb.universe.tf/
 # metallb-config is auto-included when metallb is selected
 
 chartType: upstream
-namespace: metallb-system
+namespace: o0-metallb
 releaseName: metallb
 createNamespace: true
+podSecurityEnforce: privileged  # Required for speaker (hostNetwork, NET_RAW)
 upstream:
   repository: https://metallb.github.io/metallb
   chartName: metallb

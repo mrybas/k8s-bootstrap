@@ -1,0 +1,107 @@
+# Multus CNI - Multi-Network Support
+# Enables attaching multiple network interfaces to Pods and VMs
+# Works with any primary CNI (Cilium, Kube-OVN, Calico, etc.)
+
+id: multus-cni
+name: Multus CNI
+description: Multi-network CNI plugin - enables attaching multiple network interfaces to Pods and VMs
+category: networking
+categoryName: Networking
+categoryDescription: CNI plugins and advanced networking
+icon: "🔀"
+priority: 30
+docsUrl: https://github.com/k8snetworkplumbingwg/multus-cni
+
+# Official Multus doesn't have Helm chart - use kubectl apply
+chartType: manifest
+namespace: o0-multus
+createNamespace: true
+podSecurityEnforce: privileged  # Required for CNI plugin install (hostPath, privileged)
+timeout: 5m
+
+version: "4.2.3"
+appVersion: "v4.2.3"
+
+# Official manifest from k8snetworkplumbingwg
+manifests:
+  - name: multus-thick-daemonset
+    url: https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/v4.2.3/deployments/multus-daemonset-thick.yml
+
+# No dependencies - Multus works with any primary CNI
+
+defaultValues:
+  # Image settings
+  image:
+    repository: ghcr.io/k8snetworkplumbingwg/multus-cni
+    tag: v4.1.0-thick
+  
+  # CNI configuration
+  cni:
+    # Use thick plugin for better compatibility
+    version: "0.4.0"
+    # Kube-OVN as master plugin
+    confDir: /etc/cni/net.d
+    binDir: /opt/cni/bin
+  
+  # Pod settings
+  pod:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "100m"
+        memory: "256Mi"
+
+jsonSchema:
+  type: object
+  properties:
+    image:
+      type: object
+      title: Image Settings
+      properties:
+        repository:
+          type: string
+          title: Image Repository
+          default: "ghcr.io/k8snetworkplumbingwg/multus-cni"
+        tag:
+          type: string
+          title: Image Tag
+          description: Use -thick suffix for thick plugin mode
+          default: "v4.1.0-thick"
+    cni:
+      type: object
+      title: CNI Configuration
+      properties:
+        confDir:
+          type: string
+          title: CNI Config Directory
+          default: "/etc/cni/net.d"
+        binDir:
+          type: string
+          title: CNI Binary Directory
+          default: "/opt/cni/bin"
+    pod:
+      type: object
+      title: Pod Resources
+      properties:
+        resources:
+          type: object
+          properties:
+            requests:
+              type: object
+              properties:
+                cpu:
+                  type: string
+                  default: "100m"
+                memory:
+                  type: string
+                  default: "50Mi"
+
+uiSchema:
+  image:
+    ui:collapsed: true
+  cni:
+    ui:collapsed: true
+  pod:
+    ui:collapsed: true

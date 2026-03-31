@@ -13,7 +13,7 @@ hidden: true
 docsUrl: https://istio.io/latest/docs/tasks/traffic-management/ingress/
 
 chartType: upstream
-namespace: istio-ingress
+namespace: o0-istio-ingress
 releaseName: istio-gateway
 createNamespace: true
 timeout: 5m
@@ -21,8 +21,8 @@ timeout: 5m
 upstream:
   repository: https://istio-release.storage.googleapis.com/charts
   chartName: gateway
-  version: "1.28.2"
-  appVersion: "1.24.2"
+  version: "1.28.3"
+  appVersion: "1.28.3"
 
 requiresCrds:
   - istio-base

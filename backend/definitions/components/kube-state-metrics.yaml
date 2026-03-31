@@ -1,0 +1,138 @@
+# Kube State Metrics
+# Generates metrics about the state of Kubernetes objects
+
+id: kube-state-metrics
+name: Kube State Metrics
+description: Generates Prometheus metrics about Kubernetes object states (pods, deployments, nodes, VMs)
+category: observability
+categoryName: Observability
+categoryDescription: Monitoring, logging, tracing, and alerting
+icon: "📊"
+priority: 51
+docsUrl: https://github.com/kubernetes/kube-state-metrics
+
+chartType: upstream
+namespace: o0-monitoring
+releaseName: kube-state-metrics
+createNamespace: true
+timeout: 5m
+
+upstream:
+  repository: https://prometheus-community.github.io/helm-charts
+  chartName: kube-state-metrics
+  version: "7.1.0"
+  appVersion: "2.15.0"
+
+dependsOn:
+  - prometheus-operator-crds
+
+defaultValues:
+  # Built-in ServiceMonitor from the chart
+  prometheus:
+    monitor:
+      enabled: true
+  selfMonitor:
+    enabled: true
+  # Custom Resource State metrics for KubeVirt
+  customResourceState:
+    enabled: true
+    config:
+      spec:
+        resources:
+          - groupVersionKind:
+              group: kubevirt.io
+              version: v1
+              kind: VirtualMachineInstance
+            labelsFromPath:
+              name:
+                - metadata
+                - name
+              namespace:
+                - metadata
+                - namespace
+              node:
+                - status
+                - nodeName
+            metrics:
+              - name: kubevirt_vmi_info
+                help: "Information about VirtualMachineInstances"
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      phase:
+                        - status
+                        - phase
+          - groupVersionKind:
+              group: cdi.kubevirt.io
+              version: v1beta1
+              kind: DataVolume
+            labelsFromPath:
+              name:
+                - metadata
+                - name
+              namespace:
+                - metadata
+                - namespace
+            metrics:
+              - name: kubevirt_datavolume_info
+                help: "Information about DataVolumes"
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      phase:
+                        - status
+                        - phase
+
+jsonSchema:
+  type: object
+  properties:
+    prometheus:
+      type: object
+      title: Prometheus
+      properties:
+        monitor:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Enable ServiceMonitor
+              default: true
+    selfMonitor:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Self Monitoring
+          default: true
+    customResourceState:
+      type: object
+      title: Custom Resource State
+      properties:
+        enabled:
+          type: boolean
+          title: Enable CRS Metrics
+          description: Generate metrics for KubeVirt VMs and DataVolumes
+          default: true
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Request
+              default: "10m"
+            memory:
+              type: string
+              title: Memory Request
+              default: "64Mi"
+
+uiSchema:
+  customResourceState:
+    ui:collapsed: true
+  resources:
+    ui:collapsed: true

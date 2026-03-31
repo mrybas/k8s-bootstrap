@@ -43,6 +43,23 @@ bash -c "$(curl -fsSL https://your-instance/bootstrap/TOKEN)"
 
 That's it! Flux will automatically deploy and manage all selected components.
 
+### Or Use a Bundle
+
+Bundles are curated stacks with a guided wizard. Instead of picking individual components, select a bundle and configure it step by step:
+
+| Bundle | Description |
+|--------|-------------|
+| **KubeVirt Stack** | Complete virtualization platform — CNI, storage, ingress, KubeVirt |
+| **Multi-Tenant Platform** | IaaS with Kamaji tenant isolation (hidden — development) |
+
+Bundles handle component dependencies, exclusive groups (e.g., Longhorn *or* Linstor), and conditional parameters automatically. See [Bundles](docs/bundles.md) for details.
+
+To show hidden/experimental bundles via the API:
+
+```bash
+curl http://localhost:8000/api/bundles?show_hidden=true
+```
+
 ## 📖 Documentation
 
 | Document | Description |
@@ -53,6 +70,8 @@ That's it! Flux will automatically deploy and manage all selected components.
 | **[Development Environment](docs/development-environment.md)** | Local dev setup with Docker |
 | **[Testing](docs/testing.md)** | Running and writing tests |
 | **[Adding Components](docs/adding-components.md)** | Create new component definitions |
+| **[Bundles](docs/bundles.md)** | Curated component stacks (KubeVirt, Multi-Tenant) |
+| **[Production Deployment](docs/production-deployment.md)** | Deploy to production with Docker and TLS |
 
 ## 🏗️ Architecture
 

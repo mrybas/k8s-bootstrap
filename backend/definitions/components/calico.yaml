@@ -1,0 +1,44 @@
+# Calico CNI - Tenant Only
+# Not used on host cluster (host uses Cilium/Kube-OVN).
+# Deployed into tenant clusters via HelmRelease.
+
+id: calico
+name: Calico CNI
+description: Pod networking and NetworkPolicy enforcement via Tigera Operator
+category: networking
+categoryName: Networking
+categoryDescription: CNI, service mesh, and network policies
+icon: "🔗"
+priority: 200
+
+# Tenant-only: hidden from host component selection
+tenantOnly: true
+hidden: true
+
+chartType: upstream
+namespace: tigera-operator
+releaseName: calico
+createNamespace: true
+
+upstream:
+  repository: https://docs.tigera.io/calico/charts
+  chartName: tigera-operator
+  version: "v3.29.1"
+
+# --- Tenant Addon Configuration ---
+tenantAddon: true
+tenantConfig:
+  order: 1
+  namespace: tigera-operator
+  discovery_type: ""
+  required: true
+  default: true
+  defaultValues:
+    tigera-operator:
+      installation:
+        calicoNetwork:
+          bgp: Disabled
+          ipPools:
+            - cidr: "10.244.0.0/16"
+              encapsulation: VXLAN
+  parameters: []

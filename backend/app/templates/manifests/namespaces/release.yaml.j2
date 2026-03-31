@@ -26,4 +26,10 @@ spec:
     namespaces:
 {% for ns in namespaces %}
       - name: {{ ns.name }}
+{% if ns.labels %}
+        labels:
+{% for key, value in ns.labels.items() %}
+          {{ key }}: {{ value }}
+{% endfor %}
+{% endif %}
 {% endfor %}

@@ -12,7 +12,7 @@ priority: 25
 docsUrl: https://kubernetes-sigs.github.io/external-dns/
 
 chartType: upstream
-namespace: external-dns
+namespace: o0-external-dns
 releaseName: external-dns
 createNamespace: true
 

@@ -1,0 +1,119 @@
+# Linstor Cluster - Storage Cluster Configuration
+# Creates the actual DRBD/Linstor storage cluster
+# Docs: https://piraeus.io/docs/stable/how-to/helm/
+
+id: linstor-cluster
+name: Linstor Cluster
+description: Configure Linstor storage cluster - satellites, CSI driver, and HA controller
+category: storage
+categoryName: Storage
+categoryDescription: Storage solutions
+icon: "💿"
+priority: 46
+isInstance: true
+instanceOf: piraeus-operator
+multiInstance: false
+requiresOperator: piraeus-operator
+docsUrl: https://piraeus.io/docs/
+
+chartType: upstream
+namespace: o0-piraeus
+releaseName: linstor-cluster
+createNamespace: false
+timeout: 15m
+
+upstream:
+  # OCI repository path includes chart name
+  repository: oci://ghcr.io/piraeusdatastore/helm-charts/linstor-cluster
+  chartName: linstor-cluster
+  version: "1.1.1"
+
+dependsOn:
+  - piraeus-operator
+
+defaultValues:
+  # LinstorCluster CRD will be created
+  linstorCluster:
+    enabled: true
+  
+  # CSI Driver - uses Piraeus Operator to configure
+  csiDriver:
+    enabled: true
+  
+  # High Availability Controller for VMs
+  haController:
+    enabled: true
+
+jsonSchema:
+  type: object
+  properties:
+    linstorCluster:
+      type: object
+      title: Linstor Cluster
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Cluster
+          default: true
+    csiDriver:
+      type: object
+      title: CSI Driver
+      properties:
+        enabled:
+          type: boolean
+          title: Enable CSI Driver
+          default: true
+    haController:
+      type: object
+      title: HA Controller
+      properties:
+        enabled:
+          type: boolean
+          title: Enable HA
+          description: Automatic failover for VMs using DRBD
+          default: true
+
+uiSchema:
+  linstorCluster:
+    ui:collapsed: false
+
+# --- Tenant Addon Configuration ---
+# In tenant clusters: only CSI driver, no satellites/controller (connects to host)
+tenantAddon: true
+tenantConfig:
+  order: 2
+  namespace: o0-piraeus
+  discovery_type: storage
+  required: false
+  default: true
+  defaultValues:
+    linstor-cluster:
+      linstorCluster:
+        enabled: false
+      csiDriver:
+        enabled: true
+        controllerEndpoint: ""
+      haController:
+        enabled: false
+  parameters:
+    - id: LINSTOR_API_URL
+      name: Linstor Controller URL
+      type: string
+      default: ""
+      options: []
+      auto_discover: true
+      valuesPath: "linstor-cluster.csiDriver.controllerEndpoint"
+    - id: STORAGE_POOL
+      name: Storage Pool
+      type: select
+      default: ""
+      options: []
+      auto_discover: true
+      valuesPath: ""
+    - id: REPLICA_COUNT
+      name: Replica Count
+      type: select
+      default: "2"
+      options: ["1", "2", "3"]
+      auto_discover: false
+      valuesPath: ""

@@ -12,14 +12,15 @@ priority: 50
 docsUrl: https://longhorn.io/docs/
 
 chartType: upstream
-namespace: longhorn-system
+namespace: o0-longhorn
 releaseName: longhorn
 createNamespace: true
+podSecurityEnforce: privileged  # Required for hostPath, privileged containers
 
 upstream:
   repository: https://charts.longhorn.io
   chartName: longhorn
-  version: "1.10.1"
+  version: "1.11.0"
 
 defaultValues:
   persistence:
@@ -31,6 +32,7 @@ defaultValues:
     upgradeChecker: false
   ingress:
     enabled: false
+    # ingressClassName not set - uses default IngressClass
   serviceMonitor:
     enabled: false
 
@@ -80,6 +82,10 @@ jsonSchema:
           type: boolean
           title: Enable Ingress
           default: false
+        ingressClassName:
+          type: string
+          title: Ingress Class
+          description: Leave empty to use default IngressClass
         host:
           type: string
           title: Hostname

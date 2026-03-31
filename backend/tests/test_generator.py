@@ -48,11 +48,11 @@ class TestChartGenerator:
         # Check Chart.yaml exists
         assert (chart_path / "Chart.yaml").exists()
         
-        # Check values.yaml has merged values
+        # Chart values.yaml should be empty - all config lives in HelmRelease
         with open(chart_path / "values.yaml") as f:
             values = yaml.safe_load(f)
         
-        assert values["namespaces"][0]["name"] == "custom-ns"
+        assert not values  # Empty dict or None
         
         # Check templates directory exists
         assert (chart_path / "templates").is_dir()
@@ -139,8 +139,8 @@ class TestChartGenerator:
             assert "must be a YAML mapping" in error
             assert "my-component" in error
     
-    def test_merge_with_raw_overrides(self):
-        """Test that valid raw overrides are merged correctly"""
+    def test_chart_values_yaml_always_empty(self):
+        """Test that chart values.yaml is always empty - config lives in HelmRelease"""
         definition = {
             "id": "test",
             "name": "Test",
@@ -158,11 +158,8 @@ class TestChartGenerator:
         with open(chart_path / "values.yaml") as f:
             values = yaml.safe_load(f)
         
-        assert values["existing"] == "value"
-        assert values["user"] == "provided"
-        assert values["nested"]["a"] == 1
-        assert values["nested"]["b"] == 2
-        assert values["new_key"] == "new_value"
+        # Values.yaml must be empty regardless of defaults/overrides
+        assert not values
 
 
 class TestRepoGenerator:

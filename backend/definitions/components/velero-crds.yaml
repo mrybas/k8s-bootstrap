@@ -1,0 +1,54 @@
+# Velero CRDs
+# Uses official velero chart - CRDs from crds/ directory are auto-installed by Helm/Flux
+# Must be installed before velero
+
+id: velero-crds
+name: Velero CRDs
+description: Custom Resource Definitions for Velero (Backup, Restore, Schedule, etc.)
+category: crds
+categoryName: CRDs
+categoryDescription: Custom Resource Definitions
+icon: "📋"
+priority: 8
+
+# Hidden from UI - auto-included when velero is selected
+hidden: true
+autoInclude:
+  when:
+    - velero
+
+chartType: upstream
+namespace: o0-crds
+releaseName: velero-crds
+createNamespace: false
+timeout: 5m
+
+upstream:
+  repository: https://vmware-tanzu.github.io/helm-charts
+  chartName: velero
+  version: "11.3.2"
+
+# CRDs have no dependencies
+dependsOn: []
+
+# Minimal config - CRDs are installed from chart's crds/ directory by Flux
+# The velero server deployment will also be created in o0-crds namespace
+# but is harmless (same pattern as cert-manager-crds)
+defaultValues:
+  upgradeCRDs: false
+  deployNodeAgent: false
+  configuration:
+    backupStorageLocation: []
+    volumeSnapshotLocation: []
+  credentials:
+    useSecret: false
+  kubectl:
+    image:
+      repository: registry.k8s.io/kubectl
+      tag: "v1.32.0"
+
+jsonSchema:
+  type: object
+  properties: {}
+
+uiSchema: {}

@@ -1,0 +1,9 @@
+# Multus CNI Chart Values
+#
+# This chart uses official Multus daemonset manifest (thick plugin mode).
+# 
+# Note: The manifest in templates/ is a static YAML file from the official repo.
+# It is applied as-is by Helm.
+
+# No configurable values - uses official manifest directly
+{}

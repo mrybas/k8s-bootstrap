@@ -12,7 +12,7 @@ priority: 25
 docsUrl: https://docs.gitops.weave.works/
 
 chartType: upstream
-namespace: weave-gitops
+namespace: o0-weave-gitops
 releaseName: weave-gitops
 createNamespace: true
 timeout: 5m

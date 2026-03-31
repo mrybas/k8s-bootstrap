@@ -1,0 +1,106 @@
+# Kamaji DataStore - connects Kamaji to PostgreSQL (kine)
+# Creates a DataStore CR that tells Kamaji where to store tenant control plane state
+
+id: kamaji-datastore
+name: Kamaji DataStore
+description: PostgreSQL DataStore for Kamaji tenant control planes (kine backend)
+category: multi-tenancy
+categoryName: Multi-tenancy
+categoryDescription: Tenant isolation and virtual clusters
+icon: "🔗"
+priority: 11
+isInstance: true
+instanceOf: kamaji
+multiInstance: false
+requiresOperator: kamaji
+docsUrl: https://kamaji.clastix.io/guides/datastore-setup/
+
+chartType: custom
+namespace: o0-kamaji
+releaseName: kamaji-datastore
+createNamespace: false
+timeout: 5m
+
+dependsOn:
+  - kamaji
+  - cnpg-cluster
+
+defaultValues:
+  name: default
+  driver: PostgreSQL
+  postgres:
+    clusterName: kamaji-postgres
+    namespace: o0-cnpg
+    port: 5432
+    secretSuffix: app
+    username: app
+
+jsonSchema:
+  type: object
+  properties:
+    name:
+      type: string
+      title: DataStore Name
+      description: Name of the Kamaji DataStore resource
+      default: default
+    driver:
+      type: string
+      title: DataStore Driver
+      enum: ["PostgreSQL", "etcd"]
+      default: PostgreSQL
+    postgres:
+      type: object
+      title: PostgreSQL Connection
+      properties:
+        clusterName:
+          type: string
+          title: CNPG Cluster Name
+          description: Name of the CloudNativePG Cluster resource
+          default: kamaji-postgres
+        namespace:
+          type: string
+          title: Cluster Namespace
+          default: o0-cnpg
+        port:
+          type: integer
+          title: Port
+          default: 5432
+        secretSuffix:
+          type: string
+          title: Secret Suffix
+          description: "CNPG secret suffix (app or superuser)"
+          default: app
+        username:
+          type: string
+          title: DB Username
+          default: app
+
+uiSchema:
+  postgres:
+    ui:collapsed: true
+
+templates:
+  datastore.yaml: |
+    apiVersion: kamaji.clastix.io/v1alpha1
+    kind: DataStore
+    metadata:
+      name: {{ .Values.name }}
+    spec:
+      driver: {{ .Values.driver }}
+      endpoints:
+        - "{{ .Values.postgres.clusterName }}-rw.{{ .Values.postgres.namespace }}.svc:{{ .Values.postgres.port }}"
+      basicAuth:
+        username:
+          content: {{ .Values.postgres.username | b64enc }}
+        password:
+          secretReference:
+            name: {{ .Values.postgres.clusterName }}-{{ .Values.postgres.secretSuffix }}
+            namespace: {{ .Values.postgres.namespace }}
+            keyPath: password
+      tlsConfig:
+        certificateAuthority:
+          certificate:
+            secretReference:
+              name: {{ .Values.postgres.clusterName }}-ca
+              namespace: {{ .Values.postgres.namespace }}
+              keyPath: ca.crt

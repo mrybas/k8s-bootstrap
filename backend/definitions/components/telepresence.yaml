@@ -12,7 +12,7 @@ priority: 50
 docsUrl: https://www.telepresence.io/docs/latest/
 
 chartType: upstream
-namespace: ambassador
+namespace: o0-telepresence
 releaseName: traffic-manager
 createNamespace: true
 timeout: 5m

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: kubevirt-crds
+description: KubeVirt Custom Resource Definitions
+type: application
+version: 1.7.0
+appVersion: "v1.7.0"

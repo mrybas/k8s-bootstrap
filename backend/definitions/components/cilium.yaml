@@ -1,0 +1,210 @@
+# Cilium - eBPF-based CNI
+# Standalone mode by default. For chaining with Kube-OVN, use the virtualization-platform bundle.
+
+id: cilium
+name: Cilium
+description: eBPF-based CNI for network policies, observability (Hubble), and kube-proxy replacement
+category: networking
+categoryName: Networking
+categoryDescription: CNI plugins and advanced networking
+icon: "🐝"
+priority: 20
+docsUrl: https://docs.cilium.io/
+
+chartType: upstream
+namespace: o0-cilium
+releaseName: cilium
+createNamespace: true
+podSecurityEnforce: privileged  # Required for eBPF agent (hostNetwork, NET_ADMIN, SYS_ADMIN)
+additionalNamespaces:
+  - o0-cilium-secrets
+timeout: 10m
+
+upstream:
+  repository: https://helm.cilium.io
+  chartName: cilium
+  version: "1.19.0"
+  appVersion: "1.19.0"
+
+# No dependencies in standalone mode
+dependsOn: []
+
+defaultValues:
+  # STANDALONE MODE - Cilium as primary CNI
+  # For chaining with Kube-OVN, these values will be overridden by bundle
+  cni:
+    chainingMode: none
+    exclusive: true
+  
+  # IPAM - Cilium manages IPs in standalone mode
+  ipam:
+    mode: kubernetes
+  
+  # Routing
+  routingMode: tunnel
+  tunnelProtocol: vxlan
+  enableIPv4Masquerade: true
+  
+  # kube-proxy replacement disabled — conflicts with kube-ovn VPC NodePort DNAT
+  kubeProxyReplacement: "false"
+  
+  # Hubble observability
+  hubble:
+    relay:
+      enabled: true
+    ui:
+      enabled: true
+      ingress:
+        className: "nginx"
+    metrics:
+      enabled:
+        - dns
+        - drop
+        - tcp
+        - flow
+        - port-distribution
+        - icmp
+        - httpV2:exemplars=true;labelsContext=source_ip,source_namespace,source_workload,destination_ip,destination_namespace,destination_workload,traffic_direction
+      serviceMonitor:
+        enabled: true
+  
+  # Prometheus metrics for Cilium agent
+  prometheus:
+    serviceMonitor:
+      enabled: true
+  
+  # Network policies enabled
+  policyEnforcementMode: default
+  
+  # Operator settings
+  operator:
+    replicas: 1
+  
+  # Talos Linux compatibility - REQUIRED for immutable OS
+  securityContext:
+    capabilities:
+      ciliumAgent:
+        - CHOWN
+        - KILL
+        - NET_ADMIN
+        - NET_RAW
+        - IPC_LOCK
+        - SYS_ADMIN
+        - SYS_RESOURCE
+        - DAC_OVERRIDE
+        - FOWNER
+        - SETGID
+        - SETUID
+      cleanCiliumState:
+        - NET_ADMIN
+        - SYS_ADMIN
+        - SYS_RESOURCE
+  
+  # cgroup settings for Talos
+  cgroup:
+    autoMount:
+      enabled: false
+    hostRoot: /sys/fs/cgroup
+
+  # Secrets namespace managed by our namespaces chart (additionalNamespaces), not by Cilium
+  ingressController:
+    secretsNamespace:
+      create: false
+      name: o0-cilium-secrets
+  gatewayAPI:
+    secretsNamespace:
+      create: false
+      name: o0-cilium-secrets
+  envoyConfig:
+    secretsNamespace:
+      create: false
+      name: o0-cilium-secrets
+  tls:
+    secretsNamespace:
+      create: false
+      name: o0-cilium-secrets
+
+jsonSchema:
+  type: object
+  properties:
+    kubeProxyReplacement:
+      type: string
+      title: kube-proxy Replacement
+      description: Replace kube-proxy with Cilium eBPF
+      enum:
+        - "true"
+        - "false"
+        - strict
+        - partial
+      default: "true"
+    hubble:
+      type: object
+      title: Hubble Observability
+      properties:
+        relay:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Enable Hubble Relay
+              default: true
+        ui:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Enable Hubble UI
+              description: Web UI for network observability
+              default: true
+    cni:
+      type: object
+      title: CNI Configuration
+      properties:
+        chainingMode:
+          type: string
+          title: Chaining Mode
+          enum:
+            - generic-veth
+            - aws-cni
+            - portmap
+          default: generic-veth
+        exclusive:
+          type: boolean
+          title: Exclusive CNI
+          description: Set to false when using with Multus or other CNIs
+          default: false
+    operator:
+      type: object
+      title: Operator Settings
+      properties:
+        replicas:
+          type: integer
+          title: Operator Replicas
+          minimum: 1
+          maximum: 3
+          default: 1
+    resources:
+      type: object
+      title: Resources
+      properties:
+        requests:
+          type: object
+          properties:
+            cpu:
+              type: string
+              default: "100m"
+            memory:
+              type: string
+              default: "512Mi"
+
+uiSchema:
+  kubeProxyReplacement:
+    ui:widget: select
+  hubble:
+    ui:order:
+      - relay
+      - ui
+  cni:
+    ui:collapsed: true
+  resources:
+    ui:collapsed: true

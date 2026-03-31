@@ -1,0 +1,3 @@
+# Piraeus Operator values
+# All configuration lives in HelmRelease, not here
+{}

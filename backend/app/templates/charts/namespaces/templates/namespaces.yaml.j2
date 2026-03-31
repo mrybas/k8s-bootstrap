@@ -6,4 +6,9 @@ metadata:
   name: {{ '{{ .name }}' }}
   labels:
     app.kubernetes.io/managed-by: flux
+{{ '{{- if .labels }}' }}
+{{ '{{- range $key, $value := .labels }}' }}
+    {{ '{{ $key }}' }}: {{ '{{ $value | quote }}' }}
+{{ '{{- end }}' }}
+{{ '{{- end }}' }}
 {{ '{{- end }}' }}

@@ -20,14 +20,14 @@ autoInclude:
     - prometheus
 
 chartType: upstream
-namespace: cluster-crds
+namespace: o0-crds
 releaseName: prometheus-operator-crds
 createNamespace: false  # Created by repo_generator for all CRDs
 
 upstream:
   repository: https://prometheus-community.github.io/helm-charts
   chartName: prometheus-operator-crds
-  version: "26.0.0"
+  version: "27.0.0"
 
 defaultValues: {}
 

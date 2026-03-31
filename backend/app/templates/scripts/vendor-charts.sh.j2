@@ -47,11 +47,29 @@ vendor_chart() {
     rm -rf "${dest}"/* 2>/dev/null || true
     
     if [[ "$repo" == oci://* ]]; then
-        helm pull "$repo/$name" --version "$version" --untar --untardir "$dest"
+        # OCI registry - check if repo already ends with chart name
+        if [[ "$repo" == *"/$name" ]]; then
+            helm pull "$repo" --version "$version" --untar --untardir "$dest"
+        else
+            helm pull "$repo/$name" --version "$version" --untar --untardir "$dest"
+        fi
     else
-        local repo_name=$(echo "$repo" | sed 's|https://||;s|http://||;s|/|-|g;s|\\.|-|g' | cut -c1-30)
-        helm repo add "$repo_name" "$repo" 2>/dev/null || true
-        helm repo update
+        # Generate safe repo name (replace special chars, limit length)
+        local repo_name=$(echo "$repo" | sed 's|https://||;s|http://||;s|/|-|g;s|\.|-|g' | cut -c1-40)
+        
+        # Check if repo already exists (use fixed-string match to avoid regex issues with dots)
+        if ! helm repo list 2>/dev/null | grep -qF "${repo_name}	"; then
+            log "Adding helm repo: $repo_name"
+            if ! helm repo add "$repo_name" "$repo"; then
+                echo "ERROR: Failed to add helm repo $repo_name from $repo"
+                return 1
+            fi
+        fi
+        
+        # Update repos
+        helm repo update "$repo_name" 2>/dev/null || helm repo update
+        
+        # Pull chart
         helm pull "${repo_name}/$name" --version "$version" --untar --untardir "$dest"
     fi
     
@@ -61,6 +79,100 @@ vendor_chart() {
 {% for chart in charts %}
 vendor_chart "{{ chart.name }}" "{{ chart.version }}" "{{ chart.repository }}" "{{ chart.category }}"
 {% endfor %}
+{% if tenant_charts %}
+
+# ============================================================================
+# Tenant Addon Charts — vendored to tenant-charts/<category>/<name>/charts/
+# ============================================================================
+
+TENANT_CHARTS_DIR="${SCRIPT_DIR}/tenant-charts"
+
+vendor_tenant_chart() {
+    local name="$1"
+    local version="$2"
+    local repo="$3"
+    local category="$4"
+    local addon_id="$5"
+    
+    # Path: tenant-charts/<category>/<addon-id>/charts/<upstream-name>/
+    local dest="${TENANT_CHARTS_DIR}/${category}/${addon_id}/charts"
+    
+    # Skip if already vendored with correct version
+    if [[ -d "${dest}/${name}" ]] && [[ -f "${dest}/${name}/Chart.yaml" ]]; then
+        local current_version=$(grep "^version:" "${dest}/${name}/Chart.yaml" | awk '{print $2}' | tr -d '"')
+        if [[ "$current_version" == "$version" ]] || [[ "$current_version" == "v${version}" ]]; then
+            ok "$addon_id (tenant)@$version already vendored"
+            return 0
+        fi
+    fi
+    
+    log "Vendoring tenant chart $addon_id ($name@$version) to tenant-charts/${category}/${addon_id}..."
+    mkdir -p "$dest"
+    rm -rf "${dest}"/* 2>/dev/null || true
+    
+    if [[ "$repo" == oci://* ]]; then
+        if [[ "$repo" == *"/$name" ]]; then
+            helm pull "$repo" --version "$version" --untar --untardir "$dest"
+        else
+            helm pull "$repo/$name" --version "$version" --untar --untardir "$dest"
+        fi
+    else
+        local repo_name=$(echo "$repo" | sed 's|https://||;s|http://||;s|/|-|g;s|\.|-|g' | cut -c1-40)
+        if ! helm repo list 2>/dev/null | grep -qF "${repo_name}	"; then
+            log "Adding helm repo: $repo_name"
+            if ! helm repo add "$repo_name" "$repo"; then
+                echo "ERROR: Failed to add helm repo $repo_name from $repo"
+                return 1
+            fi
+        fi
+        helm repo update "$repo_name" 2>/dev/null || helm repo update
+        helm pull "${repo_name}/$name" --version "$version" --untar --untardir "$dest"
+    fi
+    
+    ok "$addon_id (tenant)@$version vendored"
+}
+
+log "Vendoring tenant addon charts..."
+{% for tc in tenant_charts %}
+vendor_tenant_chart "{{ tc.name }}" "{{ tc.version }}" "{{ tc.repository }}" "{{ tc.category }}" "{{ tc.id }}"
+{% endfor %}
+{% endif %}
+
+# Fix upstream CRD bugs (duplicate YAML keys rejected by Flux's strict YAML parser)
+# kube-ovn v1.15.x has duplicate 'description' keys in vpcs and ippools CRDs
+fix_kube_ovn_crds() {
+    local crd_file="${CHARTS_DIR}/networking/kube-ovn/charts/kube-ovn/templates/kube-ovn-crd.yaml"
+    [[ -f "$crd_file" ]] || return 0
+    
+    # Remove only duplicate 'description' keys (where a second description follows at same indent)
+    # Cannot blindly remove all matching lines - subnets.kubeovn.io has a legitimate single one
+    python3 -c "
+import sys
+with open(sys.argv[1]) as f:
+    lines = f.readlines()
+remove = set()
+for i, line in enumerate(lines):
+    s = line.lstrip()
+    if not s.startswith('description:'):
+        continue
+    indent = len(line) - len(s)
+    for j in range(i+1, min(i+6, len(lines))):
+        s2 = lines[j].lstrip()
+        ind2 = len(lines[j]) - len(s2)
+        if ind2 < indent:
+            break
+        if ind2 == indent and s2.startswith('description:'):
+            remove.add(i)
+            break
+if remove:
+    with open(sys.argv[1], 'w') as f:
+        for i, line in enumerate(lines):
+            if i not in remove:
+                f.write(line)
+    print(f'Removed {len(remove)} duplicate description keys')
+" "$crd_file" && log "Fixed duplicate YAML keys in kube-ovn CRDs"
+}
+fix_kube_ovn_crds
 
 echo ""
 ok "All charts vendored successfully!"

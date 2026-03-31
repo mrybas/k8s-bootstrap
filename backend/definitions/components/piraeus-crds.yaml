@@ -1,0 +1,36 @@
+# Piraeus/Linstor CRDs
+# Must be installed before piraeus-operator
+
+id: piraeus-crds
+name: Piraeus CRDs
+description: Custom Resource Definitions for Piraeus/Linstor operator
+category: crds
+categoryName: CRDs
+categoryDescription: Custom Resource Definitions
+icon: "📋"
+priority: 5
+
+hidden: true
+autoInclude:
+  when:
+    - piraeus-operator
+
+chartType: custom
+namespace: o0-crds
+releaseName: piraeus-crds
+createNamespace: true
+timeout: 5m
+
+version: "2.10.4"
+appVersion: "v2.10.4"
+
+# CRDs have no dependencies
+dependsOn: []
+
+defaultValues: {}
+
+jsonSchema:
+  type: object
+  properties: {}
+
+uiSchema: {}

@@ -1,0 +1,25 @@
+---
+apiVersion: kubevirt.io/v1
+kind: KubeVirt
+metadata:
+  name: kubevirt
+  namespace: o0-kubevirt
+spec:
+  certificateRotateStrategy: {}
+  configuration:
+    developerConfiguration:
+      featureGates:
+        {{- range .Values.configuration.developerConfiguration.featureGates }}
+        - {{ . }}
+        {{- end }}
+    {{- with .Values.configuration.migrations }}
+    migrations:
+      parallelMigrationsPerCluster: {{ .parallelMigrationsPerCluster | default 5 }}
+      parallelOutboundMigrationsPerNode: {{ .parallelOutboundMigrationsPerNode | default 2 }}
+      bandwidthPerMigration: {{ .bandwidthPerMigration | default "64Mi" | quote }}
+      completionTimeoutPerGiB: {{ .completionTimeoutPerGiB | default 800 }}
+      progressTimeout: {{ .progressTimeout | default 150 }}
+    {{- end }}
+  customizeComponents: {}
+  imagePullPolicy: IfNotPresent
+  workloadUpdateStrategy: {}

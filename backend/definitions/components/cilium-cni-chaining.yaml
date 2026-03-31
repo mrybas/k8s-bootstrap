@@ -1,0 +1,58 @@
+# Cilium CNI Chaining ConfigMap
+# Required when using Cilium with Kube-OVN
+# See: https://kubeovn.github.io/docs/v1.15.x/en/advance/with-cilium/
+
+id: cilium-cni-chaining
+name: Cilium CNI Chaining Config
+description: ConfigMap for Cilium chaining with Kube-OVN - required for integration
+category: networking
+categoryName: Networking
+categoryDescription: CNI plugins and advanced networking
+icon: "⛓️"
+priority: 15  # After Kube-OVN (10), before Cilium (20)
+docsUrl: https://kubeovn.github.io/docs/v1.15.x/en/advance/with-cilium/
+
+chartType: custom
+namespace: o0-cilium
+releaseName: cilium-cni-chaining
+createNamespace: false  # Created by cilium
+timeout: 2m
+
+# No Flux dependencies - CNI is bootstrapped before Flux
+# Ordering during bootstrap is handled by the bootstrap script
+dependsOn: []
+
+defaultValues: {}
+
+# Custom templates for ConfigMap
+templates:
+  configmap.yaml: |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: cni-configuration
+      namespace: o0-cilium
+    data:
+      cni-config: |-
+        {
+          "name": "generic-veth",
+          "cniVersion": "0.3.1",
+          "plugins": [
+            {
+              "type": "kube-ovn",
+              "server_socket": "/run/openvswitch/kube-ovn-daemon.sock",
+              "ipam": {
+                "type": "kube-ovn",
+                "server_socket": "/run/openvswitch/kube-ovn-daemon.sock"
+              }
+            },
+            {
+              "type": "portmap",
+              "snat": true,
+              "capabilities": {"portMappings": true}
+            },
+            {
+              "type": "cilium-cni"
+            }
+          ]
+        }

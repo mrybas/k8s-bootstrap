@@ -50,3 +50,10 @@ temp/
 
 # CI build artifacts
 backend/docs/
+
+# Dev workspace (generated repos, kubeconfigs, bootstrap scripts)
+dev/workspace/
+
+# Working notes
+TODO
+REPRODUCTION_PROMPT.md

@@ -22,6 +22,12 @@ categories:
     description: Custom Resource Definitions (before components that use them)
     priority: 20
 
+  networking:
+    name: Networking
+    icon: "🔌"
+    description: CNI plugins and advanced networking (Kube-OVN, Cilium, Multus)
+    priority: 25
+
   system:
     name: System
     icon: "⚙️"
@@ -46,6 +52,18 @@ categories:
     description: Storage solutions
     priority: 60
 
+  database:
+    name: Database
+    icon: "🗄️"
+    description: Database operators and instances (PostgreSQL, etc.)
+    priority: 62
+
+  multi-tenancy:
+    name: Multi-Tenancy
+    icon: "🏢"
+    description: Tenant control plane management (Kamaji, etc.)
+    priority: 63
+
   backup:
     name: Backup
     icon: "🛟"
@@ -57,6 +75,12 @@ categories:
     icon: "📊"
     description: Monitoring, logging and tracing
     priority: 70
+
+  virtualization:
+    name: Virtualization
+    icon: "🖥️"
+    description: Virtual machine management (KubeVirt, CDI)
+    priority: 75
 
   gitops:
     name: GitOps

@@ -1,0 +1,22 @@
+apiVersion: v2
+name: kubevirt-cdi
+version: 1.64.0
+appVersion: v1.64.0
+description: |
+  Containerized Data Importer (CDI) - VM disk image management for KubeVirt
+  
+  CDI enables importing, uploading, and cloning VM disk images as PVCs.
+  Manifests are from the official CDI release.
+  
+  Source: https://github.com/kubevirt/containerized-data-importer/releases/tag/v1.64.0
+type: application
+home: https://github.com/kubevirt/containerized-data-importer
+sources:
+  - https://github.com/kubevirt/containerized-data-importer
+keywords:
+  - kubevirt
+  - cdi
+  - storage
+  - disk-images
+maintainers:
+  - name: k8s-bootstrap

@@ -1,0 +1,3 @@
+# KubeVirt Operator Chart Values
+# All configuration lives in HelmRelease, not here
+{}

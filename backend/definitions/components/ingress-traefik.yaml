@@ -1,0 +1,136 @@
+# Ingress Traefik Component Definition
+# Upstream Helm chart wrapper
+
+id: ingress-traefik
+name: Traefik Ingress
+description: Traefik Kubernetes Ingress controller with automatic HTTPS
+category: ingress
+categoryName: Ingress
+categoryDescription: Ingress controllers and load balancers
+icon: "🚦"
+priority: 20
+docsUrl: https://traefik.io/traefik/
+
+chartType: upstream
+namespace: o0-traefik
+releaseName: traefik
+createNamespace: true
+timeout: 5m
+
+# Upstream chart details
+upstream:
+  repository: https://traefik.github.io/charts
+  chartName: traefik
+  version: "35.2.0"
+  appVersion: "v3.2.3"
+
+# Dependencies
+dependsOn:
+  - namespaces
+
+# Default values
+defaultValues:
+  deployment:
+    replicas: 2
+  ingressClass:
+    enabled: true
+    isDefaultClass: true
+  ingressRoute:
+    dashboard:
+      enabled: false  # Enable via Ingress instead
+  providers:
+    kubernetesCRD:
+      enabled: true
+    kubernetesIngress:
+      enabled: true
+  ports:
+    web:
+      exposedPort: 80
+      expose:
+        default: true
+    websecure:
+      exposedPort: 443
+      expose:
+        default: true
+  service:
+    type: LoadBalancer
+  metrics:
+    prometheus:
+      enabled: false
+
+# JSON Schema for UI form
+jsonSchema:
+  type: object
+  properties:
+    deployment:
+      type: object
+      title: Deployment Settings
+      properties:
+        replicas:
+          type: integer
+          title: Replicas
+          description: Number of Traefik replicas
+          minimum: 1
+          maximum: 10
+          default: 2
+    ingressClass:
+      type: object
+      title: Ingress Class
+      properties:
+        isDefaultClass:
+          type: boolean
+          title: Default Ingress Class
+          description: Make Traefik the default IngressClass
+          default: true
+    service:
+      type: object
+      title: Service
+      properties:
+        type:
+          type: string
+          title: Service Type
+          enum:
+            - LoadBalancer
+            - NodePort
+            - ClusterIP
+          default: LoadBalancer
+    ports:
+      type: object
+      title: Ports
+      properties:
+        web:
+          type: object
+          title: HTTP Port
+          properties:
+            exposedPort:
+              type: integer
+              title: Exposed Port
+              default: 80
+        websecure:
+          type: object
+          title: HTTPS Port
+          properties:
+            exposedPort:
+              type: integer
+              title: Exposed Port
+              default: 443
+    metrics:
+      type: object
+      title: Metrics
+      properties:
+        prometheus:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Enable Prometheus Metrics
+              default: false
+
+# UI Schema
+uiSchema:
+  deployment:
+    replicas:
+      ui:widget: updown
+  service:
+    type:
+      ui:widget: select

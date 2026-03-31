@@ -1,0 +1,38 @@
+# KubeVirt CRDs
+# Must be installed before kubevirt-operator
+# Custom chart with CRDs extracted from official manifests
+
+id: kubevirt-crds
+name: KubeVirt CRDs
+description: Custom Resource Definitions for KubeVirt
+category: crds
+categoryName: CRDs
+categoryDescription: Custom Resource Definitions
+icon: "📋"
+priority: 7
+
+# Hidden from UI - auto-included when kubevirt-operator is selected
+hidden: true
+autoInclude:
+  when:
+    - kubevirt-operator
+
+chartType: custom
+namespace: o0-crds
+releaseName: kubevirt-crds
+createNamespace: false
+timeout: 5m
+
+version: "1.7.0"
+appVersion: "v1.7.0"
+
+# CRDs have no dependencies
+dependsOn: []
+
+defaultValues: {}
+
+jsonSchema:
+  type: object
+  properties: {}
+
+uiSchema: {}

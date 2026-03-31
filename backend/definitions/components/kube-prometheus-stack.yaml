@@ -16,7 +16,7 @@ requiresCrds:
   - prometheus-operator-crds
 
 chartType: upstream
-namespace: monitoring
+namespace: o0-monitoring
 releaseName: kube-prometheus-stack
 createNamespace: true
 timeout: 15m
@@ -25,8 +25,8 @@ timeout: 15m
 upstream:
   repository: https://prometheus-community.github.io/helm-charts
   chartName: kube-prometheus-stack
-  version: "80.14.3"
-  appVersion: "0.71.2"
+  version: "81.5.2"
+  appVersion: "0.79.2"
 
 # Dependencies
 dependsOn:

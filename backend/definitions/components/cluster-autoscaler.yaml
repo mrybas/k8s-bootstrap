@@ -12,14 +12,14 @@ priority: 8
 docsUrl: https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler
 
 chartType: upstream
-namespace: cluster-autoscaler
+namespace: o0-cluster-autoscaler
 releaseName: cluster-autoscaler
 createNamespace: true
 
 upstream:
   repository: https://kubernetes.github.io/autoscaler
   chartName: cluster-autoscaler
-  version: "9.54.1"
+  version: "9.55.0"
 
 defaultValues:
   cloudProvider: ""

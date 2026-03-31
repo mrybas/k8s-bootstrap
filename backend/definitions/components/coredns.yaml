@@ -12,9 +12,9 @@ priority: 5
 docsUrl: https://coredns.io/manual/toc/
 
 chartType: upstream
-namespace: coredns
+namespace: kube-system
 releaseName: coredns
-createNamespace: true
+createNamespace: false
 
 # Usually pre-installed, but can be customized
 note: "CoreDNS is typically pre-installed in most Kubernetes distributions. Use this to customize configuration."
@@ -22,10 +22,13 @@ note: "CoreDNS is typically pre-installed in most Kubernetes distributions. Use 
 upstream:
   repository: https://coredns.github.io/helm
   chartName: coredns
-  version: "1.45.0"
+  version: "1.45.2"
 
 defaultValues:
   replicaCount: 2
+  service:
+    name: kube-dns
+    clusterIP: 10.96.0.10
   resources:
     limits:
       cpu: 100m
@@ -58,7 +61,7 @@ defaultValues:
         - name: prometheus
           parameters: 0.0.0.0:9153
         - name: forward
-          parameters: . /etc/resolv.conf
+          parameters: . 8.8.8.8 8.8.4.4
         - name: cache
           parameters: 30
         - name: loop

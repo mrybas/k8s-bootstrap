@@ -1,0 +1,130 @@
+# MinIO - S3-compatible Object Storage
+# Lightweight self-hosted S3 for Velero backups, Loki chunks, artifacts
+# Docs: https://min.io/docs/minio/kubernetes/upstream/
+
+id: minio
+name: MinIO
+description: S3-compatible object storage - backup target for Velero, storage for Loki and artifacts
+category: storage
+categoryName: Storage
+categoryDescription: Storage solutions
+icon: "🪣"
+priority: 50
+docsUrl: https://min.io/docs/minio/kubernetes/upstream/
+
+chartType: upstream
+namespace: o0-minio
+releaseName: minio
+createNamespace: true
+timeout: 5m
+
+upstream:
+  repository: https://charts.min.io
+  chartName: minio
+  version: "5.4.0"
+
+dependsOn:
+  - namespaces
+
+defaultValues:
+  mode: standalone
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 50Gi
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+  # Default credentials (override in production!)
+  rootUser: minioadmin
+  rootPassword: minioadmin
+  # Create default bucket for Velero
+  buckets:
+    - name: velero
+      policy: none
+      purge: false
+  consoleIngress:
+    enabled: false
+  ingress:
+    enabled: false
+  metrics:
+    serviceMonitor:
+      enabled: false
+
+jsonSchema:
+  type: object
+  properties:
+    mode:
+      type: string
+      title: Deployment Mode
+      enum:
+        - standalone
+        - distributed
+      default: standalone
+    replicas:
+      type: integer
+      title: Replicas (distributed mode)
+      minimum: 1
+      maximum: 16
+      default: 1
+    persistence:
+      type: object
+      title: Storage
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Persistent Storage
+          default: true
+        size:
+          type: string
+          title: Storage Size
+          default: "50Gi"
+    rootUser:
+      type: string
+      title: Root User
+      default: minioadmin
+    rootPassword:
+      type: string
+      title: Root Password
+      default: minioadmin
+    buckets:
+      type: array
+      title: Default Buckets
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+            title: Bucket Name
+          policy:
+            type: string
+            title: Policy
+            enum:
+              - none
+              - download
+              - upload
+              - public
+            default: none
+    metrics:
+      type: object
+      title: Monitoring
+      properties:
+        serviceMonitor:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Enable ServiceMonitor
+              default: false
+
+uiSchema:
+  rootPassword:
+    ui:widget: password
+  mode:
+    ui:widget: select
+    ui:help: "Standalone: single instance. Distributed: multi-replica HA."
+  buckets:
+    ui:collapsed: true
+  metrics:
+    ui:collapsed: true

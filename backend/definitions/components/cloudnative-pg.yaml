@@ -1,0 +1,68 @@
+# CloudNativePG - PostgreSQL Operator for Kubernetes
+# CNCF project for managing PostgreSQL clusters
+# Docs: https://cloudnative-pg.io/documentation/
+
+id: cloudnative-pg
+name: CloudNativePG
+description: PostgreSQL operator - HA clusters, backups, failover. Used as kine backend for Kamaji tenant control planes.
+category: database
+categoryName: Database
+categoryDescription: Database operators and instances
+icon: "🐘"
+priority: 10
+isOperator: true
+operatorFor: postgresql
+docsUrl: https://cloudnative-pg.io/documentation/
+
+chartType: upstream
+namespace: o0-cnpg
+releaseName: cloudnative-pg
+createNamespace: true
+timeout: 5m
+
+upstream:
+  repository: https://cloudnative-pg.github.io/charts
+  chartName: cloudnative-pg
+  version: "0.27.1"
+
+dependsOn:
+  - namespaces
+
+defaultValues:
+  crds:
+    create: true
+  monitoring:
+    podMonitorEnabled: false
+    grafanaDashboard:
+      create: false
+
+jsonSchema:
+  type: object
+  properties:
+    crds:
+      type: object
+      title: CRDs
+      properties:
+        create:
+          type: boolean
+          title: Install CRDs
+          default: true
+    monitoring:
+      type: object
+      title: Monitoring
+      properties:
+        podMonitorEnabled:
+          type: boolean
+          title: Enable PodMonitor
+          default: false
+        grafanaDashboard:
+          type: object
+          properties:
+            create:
+              type: boolean
+              title: Create Grafana Dashboard
+              default: false
+
+uiSchema:
+  monitoring:
+    ui:collapsed: true

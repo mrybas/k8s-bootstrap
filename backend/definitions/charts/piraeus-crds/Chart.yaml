@@ -1,0 +1,21 @@
+apiVersion: v2
+name: piraeus-crds
+version: 2.10.4
+appVersion: v2.10.4
+description: |
+  Piraeus/Linstor CRDs
+  
+  Custom Resource Definitions for Piraeus Operator.
+  Must be installed before the operator.
+  
+  Source: https://github.com/piraeusdatastore/piraeus-operator/releases/tag/v2.10.4
+type: application
+home: https://piraeus.io/
+sources:
+  - https://github.com/piraeusdatastore/piraeus-operator
+keywords:
+  - piraeus
+  - linstor
+  - crds
+maintainers:
+  - name: k8s-bootstrap

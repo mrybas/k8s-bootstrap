@@ -8,69 +8,69 @@ icon: 🛟
 priority: 60
 docsUrl: https://velero.io/docs/
 chartType: upstream
-namespace: velero
+namespace: o0-velero
 releaseName: velero
 createNamespace: true
+podSecurityEnforce: privileged  # Required for node-agent (hostPath volumes)
 upstream:
   repository: https://vmware-tanzu.github.io/helm-charts
   chartName: velero
-  version: 11.3.2
+  version: "11.3.2"
+
+dependsOn:
+  - velero-crds
+
 defaultValues:
-  initContainers: []
+  initContainers:
+    - name: velero-plugin-for-aws
+      image: velero/velero-plugin-for-aws:v1.12.1
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - mountPath: /target
+          name: plugins
   configuration:
-    backupStorageLocation:
-    - name: default
-      provider: ''
-      bucket: ''
-      config: {}
-    volumeSnapshotLocation:
-    - name: default
-      provider: ''
+    # BSL/VSL disabled until S3 credentials are configured
+    backupStorageLocation: []
+    volumeSnapshotLocation: []
+    features: EnableCSI
+    defaultItemOperationTimeout: 24h
   credentials:
-    useSecret: true
-  serviceMonitor:
-    enabled: false
+    useSecret: false
+  backupsEnabled: false
+  snapshotsEnabled: false
+  deployNodeAgent: true
+  nodeAgent:
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1024Mi
   image:
     repository: velero/velero
     tag: v1.17.1
     pullPolicy: IfNotPresent
-    imagePullSecrets: []
-  upgradeCRDsJob:
-    extraVolumes: []
-    extraVolumeMounts: []
-    extraEnvVars: []
-    automountServiceAccountToken: true
-  dnsPolicy: ClusterFirst
+  upgradeCRDs: false
+  kubectl:
+    image:
+      repository: registry.k8s.io/kubectl
+      tag: "v1.32.0"
   metrics:
     enabled: true
     scrapeInterval: 30s
     scrapeTimeout: 10s
-    service:
-      type: ClusterIP
-      nodePort: null
-      externalTrafficPolicy: ''
-      internalTrafficPolicy: ''
-      ipFamilyPolicy: ''
-      ipFamilies: []
     podAnnotations:
       prometheus.io/scrape: 'true'
       prometheus.io/port: '8085'
       prometheus.io/path: /metrics
     serviceMonitor:
       autodetect: true
-      enabled: false
-    nodeAgentPodMonitor:
-      autodetect: true
-      enabled: false
-    prometheusRule:
-      autodetect: true
-      enabled: false
-      spec: []
-  kubectl:
-    image:
-      repository: docker.io/bitnamilegacy/kubectl
-    extraVolumes: []
-    extraVolumeMounts: []
+      enabled: true
   rbac:
     create: true
     clusterAdministrator: true
@@ -78,12 +78,7 @@ defaultValues:
   serviceAccount:
     server:
       create: true
-      name: null
-      annotations: null
-      labels: null
-      imagePullSecrets: []
       automountServiceAccountToken: true
-  configMaps: {}
 jsonSchema:
   type: object
   properties:

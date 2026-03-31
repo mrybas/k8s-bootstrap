@@ -1,0 +1,23 @@
+apiVersion: v2
+name: piraeus-operator
+version: 2.10.4
+appVersion: v2.10.4
+description: |
+  Piraeus Operator - LINSTOR for Kubernetes
+  
+  High-performance distributed block storage using DRBD.
+  This chart installs the Piraeus Operator from official release manifest.
+  
+  Source: https://github.com/piraeusdatastore/piraeus-operator/releases/tag/v2.10.4
+type: application
+home: https://piraeus.io/
+sources:
+  - https://github.com/piraeusdatastore/piraeus-operator
+keywords:
+  - piraeus
+  - linstor
+  - drbd
+  - storage
+  - block-storage
+maintainers:
+  - name: k8s-bootstrap

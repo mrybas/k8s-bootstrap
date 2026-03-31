@@ -18,14 +18,14 @@ autoInclude:
     - cert-manager
 
 chartType: upstream
-namespace: cluster-crds
+namespace: o0-crds
 releaseName: cert-manager-crds
 createNamespace: false  # Created by repo_generator for all CRDs
 
 upstream:
   repository: https://charts.jetstack.io
   chartName: cert-manager
-  version: "v1.19.2"
+  version: "v1.19.3"
 
 # Only install CRDs, not the controller
 defaultValues:

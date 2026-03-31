@@ -12,7 +12,7 @@ priority: 7
 docsUrl: https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler
 
 chartType: upstream
-namespace: vpa
+namespace: o0-vpa
 releaseName: vpa
 createNamespace: true
 

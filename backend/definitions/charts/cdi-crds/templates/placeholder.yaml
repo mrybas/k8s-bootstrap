@@ -1,0 +1,14 @@
+# CDI CRDs placeholder
+# Actual CRDs are applied via bootstrap script:
+# kubectl apply -f https://github.com/kubevirt/containerized-data-importer/releases/download/v1.64.0/cdi-operator.yaml --server-side
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cdi-crds-installed
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-5"
+data:
+  source: "https://github.com/kubevirt/containerized-data-importer/releases/download/v1.64.0/cdi-operator.yaml"
+  note: "CRDs applied via bootstrap script before Flux deployment"

@@ -1,0 +1,878 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/name: piraeus-datastore
+  name: piraeus-operator-controller-manager
+  namespace: o0-piraeus
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/name: piraeus-datastore
+  name: piraeus-operator-gencert
+  namespace: o0-piraeus
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/name: piraeus-datastore
+  name: piraeus-operator-gencert
+  namespace: o0-piraeus
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/name: piraeus-datastore
+  name: piraeus-operator-leader-election-role
+  namespace: o0-piraeus
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: piraeus-datastore
+  name: piraeus-operator-controller-manager
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - events
+  - persistentvolumes
+  - pods
+  - secrets
+  - serviceaccounts
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims/status
+  verbs:
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - pods/eviction
+  verbs:
+  - create
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  verbs:
+  - get
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - machines
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  - endpointslices/restricted
+  verbs:
+  - create
+  - delete
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - groupsnapshot.storage.k8s.io
+  resources:
+  - volumegroupsnapshotclasses
+  - volumesnapshots
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - groupsnapshot.storage.k8s.io
+  resources:
+  - volumegroupsnapshotcontents
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - groupsnapshot.storage.k8s.io
+  resources:
+  - volumegroupsnapshotcontents/status
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - internal.linstor.linbit.com
+  resources:
+  - '*'
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - piraeus.io
+  resources:
+  - linstorclusters
+  - linstornodeconnections
+  - linstorsatellites
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - piraeus.io
+  resources:
+  - linstorclusters/finalizers
+  - linstornodeconnections/finalizers
+  - linstorsatellites/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - piraeus.io
+  resources:
+  - linstorclusters/status
+  - linstornodeconnections/status
+  - linstorsatelliteconfigurations/status
+  - linstorsatellites/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - piraeus.io
+  resources:
+  - linstorsatelliteconfigurations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  - rolebindings
+  - roles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - security.openshift.io
+  resourceNames:
+  - privileged
+  resources:
+  - securitycontextconstraints
+  verbs:
+  - use
+- apiGroups:
+  - snapshot.storage.k8s.io
+  resources:
+  - volumesnapshotclasses
+  - volumesnapshots
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - snapshot.storage.k8s.io
+  resources:
+  - volumesnapshotcontents
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - snapshot.storage.k8s.io
+  resources:
+  - volumesnapshotcontents/status
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - csidrivers
+  - csistoragecapacities
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - csinodes
+  verbs:
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  - volumeattributesclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - volumeattachments
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - volumeattachments/status
+  verbs:
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: piraeus-datastore
+  name: piraeus-operator-gencert
+rules:
+- apiGroups:
+  - admissionregistration.k8s.io
+  resourceNames:
+  - piraeus-operator-validating-webhook-configuration
+  resources:
+  - validatingwebhookconfigurations
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: piraeus-datastore
+  name: piraeus-operator-gencert
+  namespace: o0-piraeus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: piraeus-operator-gencert
+subjects:
+- kind: ServiceAccount
+  name: piraeus-operator-gencert
+  namespace: o0-piraeus
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: piraeus-datastore
+  name: piraeus-operator-leader-election-rolebinding
+  namespace: o0-piraeus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: piraeus-operator-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: piraeus-operator-controller-manager
+  namespace: o0-piraeus
+- kind: ServiceAccount
+  name: piraeus-operator-gencert
+  namespace: o0-piraeus
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: piraeus-datastore
+  name: piraeus-operator-gencert
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: piraeus-operator-gencert
+subjects:
+- kind: ServiceAccount
+  name: piraeus-operator-gencert
+  namespace: o0-piraeus
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: piraeus-datastore
+  name: piraeus-operator-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: piraeus-operator-controller-manager
+subjects:
+- kind: ServiceAccount
+  name: piraeus-operator-controller-manager
+  namespace: o0-piraeus
+---
+apiVersion: v1
+data:
+  0_piraeus_datastore_images.yaml: |
+    ---
+    # This is the configuration for default images used by piraeus-operator
+    #
+    # "base" is the default repository prefix to use.
+    base: quay.io/piraeusdatastore
+    # "components" is a mapping of image placeholders to actual image names with tag.
+    # For example, the image name "linstor-controller" in the kustomize-resources will be replaced by:
+    #   quay.io/piraeusdatastore/piraeus-server:v1.24.2
+    components:
+      linstor-controller:
+        tag: v1.32.3
+        image: piraeus-server
+      linstor-satellite:
+        tag: v1.32.3
+        image: piraeus-server
+      linstor-csi:
+        tag: v1.10.5
+        image: piraeus-csi
+      nfs-server:
+        tag: v1.10.5
+        image: piraeus-csi-nfs-server
+      drbd-reactor:
+        tag: v1.10.0
+        image: drbd-reactor
+      ha-controller:
+        tag: v1.3.2
+        image: piraeus-ha-controller
+      drbd-shutdown-guard:
+        tag: v1.1.2
+        image: drbd-shutdown-guard
+      ktls-utils:
+        tag: v1.2.1
+        image: ktls-utils
+      linstor-affinity-controller:
+        tag: v1.3.0
+        image: linstor-affinity-controller
+      drbd-module-loader:
+        tag: v9.2.16
+        # The special "match" attribute is used to select an image based on the node's reported OS.
+        # The operator will first check the k8s node's ".status.nodeInfo.osImage" field, and compare it against the list
+        # here. If one matches, that specific image name will be used instead of the fallback image.
+        image: drbd9-noble # Fallback image: chose a recent kernel, which can hopefully compile whatever config is actually in use
+        match:
+          - osImage: Red Hat Enterprise Linux 8\.
+            image: drbd9-almalinux8
+          - osImage: Red Hat Enterprise Linux 9\.
+            image: drbd9-almalinux9
+          - osImage: Red Hat Enterprise Linux 10\.
+            image: drbd9-almalinux10
+          - osImage: "Red Hat Enterprise Linux CoreOS 41[3-9]"
+            image: drbd9-almalinux9
+          - osImage: Red Hat Enterprise Linux CoreOS
+            image: drbd9-almalinux8
+          - osImage: CentOS Linux 8
+            image: drbd9-almalinux8
+          - osImage: AlmaLinux 8
+            image: drbd9-almalinux8
+          - osImage: AlmaLinux 9
+            image: drbd9-almalinux9
+          - osImage: AlmaLinux 10
+            image: drbd9-almalinux10
+          - osImage: Oracle Linux Server 8\.
+            image: drbd9-almalinux8
+          - osImage: Oracle Linux Server 9\.
+            image: drbd9-almalinux9
+          - osImage: Oracle Linux Server 10\.
+            image: drbd9-almalinux10
+          - osImage: Rocky Linux 8
+            image: drbd9-almalinux8
+          - osImage: Rocky Linux 9
+            image: drbd9-almalinux9
+          - osImage: Rocky Linux 10
+            image: drbd9-almalinux10
+          - osImage: Ubuntu 22\.04
+            image: drbd9-jammy
+          - osImage: Ubuntu 24\.04
+            image: drbd9-noble
+          - osImage: Debian GNU/Linux 12
+            image: drbd9-bookworm
+          - osImage: Debian GNU/Linux 11
+            image: drbd9-bullseye
+  0_sig_storage_images.yaml: |
+    ---
+    base: registry.k8s.io/sig-storage
+    components:
+      csi-attacher:
+        tag: v4.10.0
+        image: csi-attacher
+      csi-livenessprobe:
+        tag: v2.17.0
+        image: livenessprobe
+      csi-provisioner:
+        tag: v6.1.0
+        image: csi-provisioner
+      csi-snapshotter:
+        tag: v8.4.0
+        image: csi-snapshotter
+      csi-resizer:
+        tag: v2.0.0
+        image: csi-resizer
+      csi-external-health-monitor-controller:
+        tag: v0.16.0
+        image: csi-external-health-monitor-controller
+      csi-node-driver-registrar:
+        tag: v2.15.0
+        image: csi-node-driver-registrar
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/name: piraeus-datastore
+  name: piraeus-operator-image-config
+  namespace: o0-piraeus
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: piraeus-datastore
+  name: piraeus-operator-webhook-service
+  namespace: o0-piraeus
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 9443
+  selector:
+    app.kubernetes.io/component: piraeus-operator
+    app.kubernetes.io/name: piraeus-datastore
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: piraeus-operator
+    app.kubernetes.io/name: piraeus-datastore
+  name: piraeus-operator-controller-manager
+  namespace: o0-piraeus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: piraeus-operator
+      app.kubernetes.io/name: piraeus-datastore
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        app.kubernetes.io/component: piraeus-operator
+        app.kubernetes.io/name: piraeus-datastore
+    spec:
+      containers:
+      - args:
+        - --leader-elect
+        - --metrics-bind-address=0
+        - --namespace=$(NAMESPACE)
+        - --zap-devel=$(ZAP_DEVEL)
+        - --image-config-map-name=$(IMAGE_CONFIG_MAP_NAME)
+        - --requeue-interval=$(REQUEUE_INTERVAL)
+        - --cluster-api-kubeconfig=$(CLUSTER_API_KUBECONFIG)
+        command:
+        - /manager
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: ZAP_DEVEL
+          value: "false"
+        - name: IMAGE_CONFIG_MAP_NAME
+          value: piraeus-operator-image-config
+        - name: REQUEUE_INTERVAL
+          value: 1m
+        - name: CLUSTER_API_KUBECONFIG
+          value: ""
+        image: quay.io/piraeusdatastore/piraeus-operator:v2.10.4
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
+      priorityClassName: system-cluster-critical
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: piraeus-operator-controller-manager
+      terminationGracePeriodSeconds: 10
+      tolerations:
+      - effect: NoSchedule
+        key: drbd.linbit.com/lost-quorum
+      - effect: NoSchedule
+        key: drbd.linbit.com/force-io-error
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: webhook-server-cert
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: piraeus-operator-gencert
+    app.kubernetes.io/name: piraeus-datastore
+  name: piraeus-operator-gencert
+  namespace: o0-piraeus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: piraeus-operator-gencert
+      app.kubernetes.io/name: piraeus-datastore
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: gencert
+      labels:
+        app.kubernetes.io/component: piraeus-operator-gencert
+        app.kubernetes.io/name: piraeus-datastore
+    spec:
+      containers:
+      - args:
+        - --leader-elect
+        - --namespace=$(NAMESPACE)
+        - --zap-devel=$(ZAP_DEVEL)
+        - --webhook-configuration-name=$(WEBHOOK_CONFIGURATION_NAME)
+        - --webhook-service-name=$(WEBHOOK_SERVICE_NAME)
+        - --webhook-tls-secret-name=$(WEBHOOK_TLS_SECRET_NAME)
+        command:
+        - /gencert
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: WEBHOOK_CONFIGURATION_NAME
+          value: piraeus-operator-validating-webhook-configuration
+        - name: WEBHOOK_SERVICE_NAME
+          value: piraeus-operator-webhook-service
+        - name: WEBHOOK_TLS_SECRET_NAME
+          value: webhook-server-cert
+        - name: ZAP_DEVEL
+          value: "false"
+        image: quay.io/piraeusdatastore/piraeus-operator:v2.10.4
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: gencert
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 50m
+            memory: 128Mi
+          requests:
+            cpu: 5m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+      priorityClassName: system-cluster-critical
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: piraeus-operator-gencert
+      terminationGracePeriodSeconds: 10
+      tolerations:
+      - effect: NoSchedule
+        key: drbd.linbit.com/lost-quorum
+      - effect: NoSchedule
+        key: drbd.linbit.com/force-io-error
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  labels:
+    app.kubernetes.io/name: piraeus-datastore
+  name: piraeus-operator-validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: piraeus-operator-webhook-service
+      namespace: o0-piraeus
+      path: /validate-storage-k8s-io-v1-storageclass
+  failurePolicy: Fail
+  name: vstorageclass.kb.io
+  rules:
+  - apiGroups:
+    - storage.k8s.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - storageclasses
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: piraeus-operator-webhook-service
+      namespace: o0-piraeus
+      path: /validate-piraeus-io-v1-linstorcluster
+  failurePolicy: Fail
+  name: vlinstorcluster.kb.io
+  rules:
+  - apiGroups:
+    - piraeus.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - linstorclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: piraeus-operator-webhook-service
+      namespace: o0-piraeus
+      path: /validate-piraeus-io-v1-linstornodeconnection
+  failurePolicy: Fail
+  name: vlinstornodeconnection.kb.io
+  rules:
+  - apiGroups:
+    - piraeus.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - linstornodeconnections
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: piraeus-operator-webhook-service
+      namespace: o0-piraeus
+      path: /validate-piraeus-io-v1-linstorsatellite
+  failurePolicy: Fail
+  name: vlinstorsatellite.kb.io
+  rules:
+  - apiGroups:
+    - piraeus.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - linstorsatellites
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: piraeus-operator-webhook-service
+      namespace: o0-piraeus
+      path: /validate-piraeus-io-v1-linstorsatelliteconfiguration
+  failurePolicy: Fail
+  name: vlinstorsatelliteconfiguration.kb.io
+  rules:
+  - apiGroups:
+    - piraeus.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - linstorsatelliteconfigurations
+  sideEffects: None

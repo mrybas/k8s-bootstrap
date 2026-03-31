@@ -1,0 +1,22 @@
+apiVersion: v2
+name: multus-cni
+version: 4.1.4
+appVersion: v4.1.2
+description: |
+  Multus CNI - Multi-network support for Kubernetes
+  
+  Enables attaching multiple network interfaces to Pods and VMs.
+  Uses the thick plugin deployment for better compatibility.
+  
+  Source: https://github.com/k8snetworkplumbingwg/multus-cni/tree/v4.1.2
+type: application
+home: https://github.com/k8snetworkplumbingwg/multus-cni
+sources:
+  - https://github.com/k8snetworkplumbingwg/multus-cni
+keywords:
+  - multus
+  - cni
+  - networking
+  - multi-network
+maintainers:
+  - name: k8s-bootstrap

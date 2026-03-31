@@ -3,9 +3,370 @@ check_deps() {
     for cmd in kubectl helm git; do
         command -v $cmd &>/dev/null || err "$cmd required"
     done
-    kctl cluster-info &>/dev/null || err "Cannot connect to cluster"
+    
+    # Check kubeconfig
+    if [[ -n "${KUBECONFIG:-}" ]]; then
+        log "Using kubeconfig: ${KUBECONFIG}"
+        [[ -f "${KUBECONFIG}" ]] || err "Kubeconfig file not found: ${KUBECONFIG}"
+    fi
+    
+    # Test cluster connection
+    if ! kctl cluster-info &>/dev/null; then
+        err "Cannot connect to cluster. Check kubeconfig path and cluster availability."
+    fi
     ok "Dependencies OK"
 }
+
+# Check if nodes are Ready (have CNI)
+check_nodes_ready() {
+    # Count nodes that are NOT Ready
+    local total_nodes=$(kctl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' ')
+    local ready_nodes=$(kctl get nodes --no-headers 2>/dev/null | grep -c " Ready " || echo "0")
+    
+    if [[ "$total_nodes" -eq 0 ]]; then
+        return 1  # No nodes found
+    fi
+    
+    [[ "$ready_nodes" -eq "$total_nodes" ]]
+}
+
+{% if cni_bootstrap_component %}
+# Bootstrap CNI for clusters without CNI (e.g., Talos with cni: none)
+bootstrap_cni() {
+    if check_nodes_ready; then
+        ok "Nodes are Ready - CNI already installed"
+        return 0
+    fi
+    
+    warn "Nodes are NotReady - bootstrapping CNI directly..."
+    
+    local cni_chart="${CHARTS_DIR}/networking/{{ cni_bootstrap_component }}"
+    local cni_subchart="$cni_chart/charts/{{ cni_bootstrap_component }}"
+    
+    # Step 1: Pull the chart if not already vendored
+    if [[ ! -d "$cni_subchart" ]]; then
+        log "Downloading {{ cni_bootstrap_component }} chart..."
+        mkdir -p "$cni_chart/charts"
+        
+        {% if cni_bootstrap_component == 'cilium' %}
+        helm repo add cilium https://helm.cilium.io 2>/dev/null || true
+        helm repo update cilium 2>/dev/null || true
+        helm pull cilium/cilium --version 1.19.0 --untar --untardir "$cni_chart/charts" \
+            || { err "Failed to download Cilium chart"; return 1; }
+        {% elif cni_bootstrap_component == 'kube-ovn' %}
+        helm repo add kube-ovn https://kubeovn.github.io/kube-ovn 2>/dev/null || true
+        helm repo update kube-ovn 2>/dev/null || true
+        helm pull kube-ovn/kube-ovn --version 1.15.3 --untar --untardir "$cni_chart/charts" \
+            || { err "Failed to download Kube-OVN chart"; return 1; }
+        {% if cni_chaining_with_cilium %}
+        # Also download Cilium chart for chaining mode
+        local cilium_chart="${CHARTS_DIR}/networking/cilium"
+        local cilium_subchart="$cilium_chart/charts/cilium"
+        if [[ ! -d "$cilium_subchart" ]]; then
+            mkdir -p "$cilium_chart/charts"
+            helm repo add cilium https://helm.cilium.io 2>/dev/null || true
+            helm repo update cilium 2>/dev/null || true
+            helm pull cilium/cilium --version 1.19.0 --untar --untardir "$cilium_chart/charts" \
+                || { err "Failed to download Cilium chart"; return 1; }
+        fi
+        {% endif %}
+        {% endif %}
+        
+        ok "{{ cni_bootstrap_component }} chart downloaded"
+    else
+        ok "{{ cni_bootstrap_component }} chart already present"
+    fi
+    
+    # Step 2: Install CNI from local chart
+    log "Installing CNI stack..."
+    
+    {% if cni_bootstrap_component == 'cilium' %}
+    # Create privileged namespace before install (PSA enforcement)
+    kctl create namespace o0-cilium --dry-run=client -o yaml \
+        | kctl apply -f - 2>/dev/null
+    kctl label namespace o0-cilium \
+        pod-security.kubernetes.io/enforce=privileged \
+        pod-security.kubernetes.io/audit=privileged \
+        pod-security.kubernetes.io/warn=privileged --overwrite
+    
+    # Cilium standalone mode - minimal config to make nodes Ready
+    # Talos Linux compatibility included
+    hlm upgrade --install cilium "$cni_subchart" \
+        -n o0-cilium \
+        --set cni.chainingMode=none \
+        --set cni.exclusive=true \
+        --set ipam.mode=kubernetes \
+        --set kubeProxyReplacement=false \
+        --set routingMode=tunnel \
+        --set tunnelProtocol=vxlan \
+        --set enableIPv4Masquerade=true \
+        --set hubble.enabled=false \
+        --set hubble.relay.enabled=false \
+        --set hubble.ui.enabled=false \
+        --set operator.replicas=1 \
+        --set securityContext.capabilities.ciliumAgent="{CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}" \
+        --set securityContext.capabilities.cleanCiliumState="{NET_ADMIN,SYS_ADMIN,SYS_RESOURCE}" \
+        --set cgroup.autoMount.enabled=false \
+        --set cgroup.hostRoot=/sys/fs/cgroup \
+        --wait --timeout 10m \
+        || { err "Failed to install Cilium"; return 1; }
+    {% elif cni_bootstrap_component == 'kube-ovn' %}
+    {% if cni_chaining_with_cilium %}
+    # === Step 2a: Install Cilium in chaining mode (passive - waits for ConfigMap) ===
+    # Create privileged namespaces before install (PSA enforcement)
+    for ns in o0-cilium o0-kube-ovn; do
+        kctl create namespace "$ns" --dry-run=client -o yaml \
+            | kctl apply -f - 2>/dev/null
+        kctl label namespace "$ns" \
+            pod-security.kubernetes.io/enforce=privileged \
+            pod-security.kubernetes.io/audit=privileged \
+            pod-security.kubernetes.io/warn=privileged --overwrite
+    done
+    
+    log "Installing Cilium in chaining mode..."
+    local cilium_chart="${CHARTS_DIR}/networking/cilium"
+    local cilium_subchart="$cilium_chart/charts/cilium"
+    hlm upgrade --install cilium "$cilium_subchart" \
+        -n o0-cilium \
+        --set cni.chainingMode=generic-veth \
+        --set cni.customConf=true \
+        --set cni.configMap=cni-configuration \
+        --set cni.exclusive=false \
+        --set routingMode=native \
+        --set enableIPv4Masquerade=false \
+        --set enableIdentityMark=false \
+        --set ipam.mode=cluster-pool \
+        --set devices="eth+ eno+ ens+ enp+ ovn0 genev_sys_6081 vxlan_sys_4789" \
+        --set hubble.enabled=false \
+        --set hubble.relay.enabled=false \
+        --set hubble.ui.enabled=false \
+        --set operator.replicas=1 \
+        --set securityContext.capabilities.ciliumAgent="{CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}" \
+        --set securityContext.capabilities.cleanCiliumState="{NET_ADMIN,SYS_ADMIN,SYS_RESOURCE}" \
+        --set cgroup.autoMount.enabled=false \
+        --set cgroup.hostRoot=/sys/fs/cgroup \
+        --timeout 10m \
+        || { err "Failed to install Cilium (chaining)"; return 1; }
+    ok "Cilium installed (chaining mode - waiting for Kube-OVN)"
+    
+    # === Step 2b: Create cni-configuration ConfigMap for chaining ===
+    log "Creating CNI chaining ConfigMap..."
+    cat <<'CNICFGEOF' | kctl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cni-configuration
+  namespace: o0-cilium
+data:
+  cni-config: |-
+    {
+      "name": "generic-veth",
+      "cniVersion": "0.3.1",
+      "plugins": [
+        {
+          "type": "kube-ovn",
+          "server_socket": "/run/openvswitch/kube-ovn-daemon.sock",
+          "ipam": {
+            "type": "kube-ovn",
+            "server_socket": "/run/openvswitch/kube-ovn-daemon.sock"
+          }
+        },
+        {
+          "type": "portmap",
+          "snat": true,
+          "capabilities": {"portMappings": true}
+        },
+        {
+          "type": "cilium-cni"
+        }
+      ]
+    }
+CNICFGEOF
+    ok "CNI chaining ConfigMap created"
+    
+    {% endif %}
+    # === Step 2{{ 'c' if cni_chaining_with_cilium else '' }}: Install Kube-OVN as primary CNI ===
+    # Talos compatible config
+    # Uses standard label node-role.kubernetes.io/control-plane (no manual labeling needed)
+    log "Installing Kube-OVN as primary CNI..."
+    hlm upgrade --install kube-ovn "$cni_subchart" \
+        -n o0-kube-ovn \
+        --set namespace=o0-kube-ovn \
+        --set MASTER_NODES_LABEL="node-role.kubernetes.io/control-plane" \
+        --set DISABLE_MODULES_MANAGEMENT=true \
+        --set OPENVSWITCH_DIR="/var/lib/openvswitch" \
+        --set OVN_DIR="/var/lib/ovn" \
+        --set cni.CNI_BIN_DIR=/opt/cni/bin \
+        --set cni_conf.MOUNT_LOCAL_BIN_DIR=false \
+        --set cni_conf.CNI_CONFIG_PRIORITY="10" \
+        --set networking.ENABLE_NP=false \
+        --set networking.ENABLE_SSL=true \
+        --set networking.NETWORK_TYPE=geneve \
+        --set func.ENABLE_NP=false \
+        --wait --timeout 15m \
+        || { err "Failed to install Kube-OVN"; return 1; }
+    ok "Kube-OVN installed as primary CNI"
+    
+    # Wait for Kube-OVN distributed gateway routing policies to be ready
+    # OVN policy routing (priority 29000) handles SNAT - needs time after install
+    log "Waiting for Kube-OVN routing policies..."
+    local ovn_pod
+    ovn_pod=$(kctl get pod -n o0-kube-ovn -l app=ovn-central -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+    if [[ -z "$ovn_pod" ]]; then
+        warn "Could not find ovn-central pod in o0-kube-ovn - skipping policy check"
+    else
+        log "Found ovn-central pod: $ovn_pod"
+        local policy_wait=0
+        while [[ $policy_wait -lt 120 ]]; do
+            local policies
+            policies=$(kctl exec -n o0-kube-ovn "$ovn_pod" -c ovn-central -- ovn-nbctl lr-policy-list ovn-cluster 2>/dev/null || true)
+            if echo "$policies" | grep -q "29000"; then
+                ok "Kube-OVN routing policies ready (egress SNAT active)"
+                break
+            fi
+            sleep 5
+            policy_wait=$((policy_wait + 5))
+            echo -n "."
+        done
+        echo ""
+        if [[ $policy_wait -ge 120 ]]; then
+            warn "Kube-OVN routing policies not ready after 120s - egress may not work initially"
+        fi
+    fi
+    {% else %}
+    # Create privileged namespace before install (PSA enforcement)
+    kctl create namespace o0-{{ cni_bootstrap_component }} --dry-run=client -o yaml \
+        | kctl apply -f - 2>/dev/null
+    kctl label namespace o0-{{ cni_bootstrap_component }} \
+        pod-security.kubernetes.io/enforce=privileged \
+        pod-security.kubernetes.io/audit=privileged \
+        pod-security.kubernetes.io/warn=privileged --overwrite
+    
+    hlm upgrade --install {{ cni_bootstrap_component }} "$cni_subchart" \
+        -n o0-{{ cni_bootstrap_component }} \
+        --wait --timeout 10m \
+        || { err "Failed to install {{ cni_bootstrap_component }}"; return 1; }
+    {% endif %}
+    
+    ok "{{ cni_bootstrap_component | title }} CNI installed"
+    
+    # Step 3: Wait for nodes to become Ready
+    log "Waiting for nodes to become Ready..."
+    local max_wait=180
+    local waited=0
+    while ! check_nodes_ready && [[ $waited -lt $max_wait ]]; do
+        sleep 5
+        waited=$((waited + 5))
+        echo -n "."
+    done
+    echo ""
+    
+    if check_nodes_ready; then
+        ok "All nodes are Ready"
+    else
+        warn "Some nodes still NotReady after ${max_wait}s - continuing anyway"
+    fi
+}
+{% endif %}
+
+{% if dns_bootstrap_component %}
+# Bootstrap DNS for clusters without CoreDNS
+bootstrap_coredns() {
+    log "Checking if cluster DNS is available..."
+    
+    # Check if kube-dns service already exists and has endpoints
+    if kctl get endpoints kube-dns -n kube-system 2>/dev/null | grep -q '[0-9]'; then
+        ok "Cluster DNS already available - skipping"
+        return 0
+    fi
+    
+    warn "No cluster DNS found - bootstrapping CoreDNS..."
+    
+    local dns_chart="${CHARTS_DIR}/system/{{ dns_bootstrap_component }}"
+    local dns_subchart="$dns_chart/charts/{{ dns_bootstrap_component }}"
+    
+    # Step 1: Pull the chart if not already vendored
+    if [[ ! -d "$dns_subchart" ]]; then
+        log "Downloading {{ dns_bootstrap_component }} chart..."
+        mkdir -p "$dns_chart/charts"
+        
+        helm repo add coredns https://coredns.github.io/helm 2>/dev/null || true
+        helm repo update coredns 2>/dev/null || true
+        helm pull coredns/coredns --version 1.45.0 --untar --untardir "$dns_chart/charts" \
+            || { err "Failed to download CoreDNS chart"; return 1; }
+        
+        ok "{{ dns_bootstrap_component }} chart downloaded"
+    else
+        ok "{{ dns_bootstrap_component }} chart already present"
+    fi
+    
+    # Step 2: Install CoreDNS
+    log "Installing CoreDNS from local chart..."
+    
+    # Create temporary values file for CoreDNS
+    # Note: forward uses public DNS instead of /etc/resolv.conf because
+    # Talos uses link-local 169.254.116.108 which is unreachable from pods
+    local dns_values=$(mktemp)
+    cat > "$dns_values" << 'DNSEOF'
+replicaCount: 2
+service:
+  name: kube-dns
+  clusterIP: 10.96.0.10
+servers:
+  - zones:
+      - zone: .
+    port: 53
+    plugins:
+      - name: errors
+      - name: health
+        configBlock: |-
+          lameduck 5s
+      - name: ready
+      - name: kubernetes
+        parameters: cluster.local in-addr.arpa ip6.arpa
+        configBlock: |-
+          pods insecure
+          fallthrough in-addr.arpa ip6.arpa
+          ttl 30
+      - name: prometheus
+        parameters: 0.0.0.0:9153
+      - name: forward
+        parameters: . 8.8.8.8 8.8.4.4
+      - name: cache
+        parameters: 30
+      - name: loop
+      - name: reload
+      - name: loadbalance
+DNSEOF
+    
+    hlm upgrade --install coredns "$dns_subchart" \
+        -n kube-system \
+        -f "$dns_values" \
+        --wait --timeout 5m \
+        || { err "Failed to install CoreDNS"; return 1; }
+    
+    rm -f "$dns_values"
+    
+    ok "CoreDNS installed"
+    
+    # Step 3: Wait for DNS to be functional
+    log "Waiting for DNS to become ready..."
+    local max_wait=60
+    local waited=0
+    while ! kctl get endpoints kube-dns -n kube-system 2>/dev/null | grep -q '[0-9]' && [[ $waited -lt $max_wait ]]; do
+        sleep 5
+        waited=$((waited + 5))
+        echo -n "."
+    done
+    echo ""
+    
+    if kctl get endpoints kube-dns -n kube-system 2>/dev/null | grep -q '[0-9]'; then
+        ok "Cluster DNS is ready"
+    else
+        warn "DNS endpoints not ready after ${max_wait}s - continuing anyway"
+    fi
+}
+{% endif %}
 
 vendor_charts() {
     log "Checking if charts need vendoring..."

@@ -1,50 +1,147 @@
-# Grafana Alloy - OpenTelemetry Collector
-# Auto-generated component definition
+# Grafana Alloy - Metrics Collection Agent
+# Replaces victoria-metrics-agent with full Prometheus-compatible scraping
 
 id: alloy
 name: Grafana Alloy
-description: Vendor-neutral distribution of the OpenTelemetry Collector with Grafana integrations
+description: Metrics collection agent - scrapes node metrics, ServiceMonitors, kubelet/cadvisor, and remote-writes to VictoriaMetrics
 category: observability
 categoryName: Observability
 categoryDescription: Monitoring, logging, tracing, and alerting
 icon: "📡"
-priority: 50
+priority: 52
 docsUrl: https://grafana.com/docs/alloy/latest/
 
 chartType: upstream
-namespace: alloy
+namespace: o0-monitoring
 releaseName: alloy
 createNamespace: true
+podSecurityEnforce: privileged
 timeout: 5m
 
 upstream:
   repository: https://grafana.github.io/helm-charts
   chartName: alloy
-  version: "1.5.2"
-  appVersion: "1.4.2"
+  version: "1.6.0"
+  appVersion: "1.6.0"
 
-dependsOn: []
+dependsOn:
+  - victoria-metrics-single
+  - prometheus-operator-crds
 
 defaultValues:
   alloy:
-    clustering:
-      enabled: false
+    stabilityLevel: "public-preview"
+    configMap:
+      content: |
+        // ===== Node Exporter (built-in) =====
+        prometheus.exporter.unix "node" {
+          procfs_path    = "/host/proc"
+          sysfs_path     = "/host/sys"
+          rootfs_path    = "/host/root"
+        }
+
+        prometheus.scrape "node" {
+          targets    = prometheus.exporter.unix.node.targets
+          forward_to = [prometheus.remote_write.default.receiver]
+          scrape_interval = "30s"
+          job_name   = "node-exporter"
+        }
+
+        // ===== ServiceMonitor auto-discovery =====
+        prometheus.operator.servicemonitors "all" {
+          forward_to = [prometheus.remote_write.default.receiver]
+          scrape {
+            default_scrape_interval = "30s"
+          }
+        }
+
+        // ===== Kubelet metrics =====
+        discovery.kubernetes "nodes" {
+          role = "node"
+        }
+
+        prometheus.scrape "kubelet" {
+          targets    = discovery.kubernetes.nodes.targets
+          forward_to = [prometheus.remote_write.default.receiver]
+          scheme     = "https"
+          scrape_interval = "30s"
+          job_name   = "kubelet"
+
+          tls_config {
+            insecure_skip_verify = true
+          }
+
+          authorization {
+            type             = "Bearer"
+            credentials_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+          }
+        }
+
+        // ===== cAdvisor metrics =====
+        prometheus.scrape "cadvisor" {
+          targets    = discovery.kubernetes.nodes.targets
+          forward_to = [prometheus.remote_write.default.receiver]
+          scheme     = "https"
+          scrape_interval = "30s"
+          job_name   = "cadvisor"
+          metrics_path = "/metrics/cadvisor"
+
+          tls_config {
+            insecure_skip_verify = true
+          }
+
+          authorization {
+            type             = "Bearer"
+            credentials_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+          }
+        }
+
+        // ===== Remote Write to VictoriaMetrics =====
+        prometheus.remote_write "default" {
+          endpoint {
+            url = "http://vmsingle-vmsingle.o0-victoria-metrics.svc:8429/api/v1/write"
+          }
+        }
+    mounts:
+      extra:
+        - name: proc
+          mountPath: /host/proc
+          readOnly: true
+        - name: sys
+          mountPath: /host/sys
+          readOnly: true
+        - name: root
+          mountPath: /host/root
+          readOnly: true
+          mountPropagation: HostToContainer
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  controller:
+    type: daemonset
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+    volumes:
+      extra:
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: root
+          hostPath:
+            path: /
 
 jsonSchema:
   type: object
   properties:
-    alloy:
-      type: object
-      title: Alloy Configuration
-      properties:
-        clustering:
-          type: object
-          title: Clustering
-          properties:
-            enabled:
-              type: boolean
-              title: Enable Clustering
-              default: false
     controller:
       type: object
       title: Controller
@@ -57,11 +154,6 @@ jsonSchema:
             - daemonset
             - statefulset
           default: daemonset
-        replicas:
-          type: integer
-          title: Replicas (for deployment/statefulset)
-          default: 1
-          minimum: 1
     resources:
       type: object
       title: Resources
@@ -77,9 +169,44 @@ jsonSchema:
               type: string
               title: Memory Request
               default: "128Mi"
+        limits:
+          type: object
+          properties:
+            cpu:
+              type: string
+              title: CPU Limit
+              default: "500m"
+            memory:
+              type: string
+              title: Memory Limit
+              default: "512Mi"
 
 uiSchema:
   resources:
     ui:collapsed: true
   controller:
     ui:collapsed: true
+
+# --- Tenant Addon Configuration ---
+# This component is also available as a tenant addon
+tenantAddon: true
+tenantConfig:
+  order: 3
+  namespace: alloy
+  discovery_type: monitoring
+  defaultValues: {}
+  parameters:
+    - id: VM_REMOTE_WRITE_URL
+      name: VictoriaMetrics Write URL
+      type: string
+      default: ""
+      options: []
+      auto_discover: true
+      valuesPath: ""
+    - id: SCRAPE_INTERVAL
+      name: Scrape Interval
+      type: select
+      default: "30s"
+      options: ["15s", "30s", "60s"]
+      auto_discover: false
+      valuesPath: ""

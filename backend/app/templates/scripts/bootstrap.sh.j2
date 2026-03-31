@@ -33,6 +33,9 @@ CUSTOM_CONTEXT=""
 GIT_USERNAME="${GIT_USERNAME:-}"
 GIT_TOKEN="${GIT_TOKEN:-}"
 
+# Debug: show received arguments
+[[ -n "${DEBUG:-}" ]] && echo "[DEBUG] Args: $@"
+
 while [[ $# -gt 0 ]]; do
     case $1 in
         -k|--kubeconfig) CUSTOM_KUBECONFIG="$2"; shift 2 ;;
@@ -40,6 +43,7 @@ while [[ $# -gt 0 ]]; do
         -u|--git-user) GIT_USERNAME="$2"; shift 2 ;;
         -t|--git-token) GIT_TOKEN="$2"; shift 2 ;;
         -h|--help) usage ;;
+        --) shift; break ;;  # Handle -- separator
         *) echo "Unknown option: $1"; usage ;;
     esac
 done
@@ -351,6 +355,14 @@ main() {
     echo "  ./bootstrap.sh --install-only"
     echo ""
 {% else %}
+{% if cni_bootstrap_component %}
+    # Bootstrap CNI for clusters without CNI
+    bootstrap_cni
+{% endif %}
+{% if dns_bootstrap_component %}
+    # Bootstrap DNS for clusters without CoreDNS
+    bootstrap_coredns
+{% endif %}
     push_to_remote
     install_flux_operator
     

@@ -1,0 +1,133 @@
+# KubeVirt UI - Web interface for managing KubeVirt VMs
+
+id: kubevirt-ui
+name: KubeVirt UI
+description: Lightweight web interface for managing KubeVirt virtual machines — VNC/serial console, live migration, snapshots, networking, RBAC
+category: virtualization
+categoryName: Virtualization
+categoryDescription: Virtual machine management
+icon: "🌐"
+priority: 50
+docsUrl: https://github.com/mrybas/kubevirt-ui
+
+chartType: upstream
+namespace: kubevirt-ui-system
+releaseName: kubevirt-ui
+createNamespace: true
+timeout: 10m
+
+upstream:
+  repository: oci://ghcr.io/mrybas/kubevirt-ui/charts
+  chartName: kubevirt-ui
+  version: "2026.03.0"
+
+dependsOn:
+  - kubevirt-crds
+  - cert-manager
+
+suggestsComponents:
+  - kubevirt-operator
+  - kubevirt-cdi
+
+defaultValues:
+  replicaCount: 1
+  backend:
+    image:
+      repository: ghcr.io/mrybas/kubevirt-ui/backend
+      tag: ""
+    env:
+      LOG_LEVEL: INFO
+      CORS_ORIGINS: ""
+  frontend:
+    image:
+      repository: ghcr.io/mrybas/kubevirt-ui/frontend
+      tag: ""
+  ingress:
+    enabled: true
+    className: nginx
+    hosts:
+      - host: kubevirt-ui.local
+        paths:
+          - path: /
+            pathType: Prefix
+  auth:
+    type: oidc
+  rbac:
+    create: true
+    clusterWide: true
+    createRoles: true
+
+jsonSchema:
+  type: object
+  properties:
+    replicaCount:
+      type: integer
+      title: Replicas
+      description: Number of replicas for backend and frontend
+      minimum: 1
+      maximum: 5
+      default: 1
+    ingress:
+      type: object
+      title: Ingress
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Ingress
+          default: true
+        className:
+          type: string
+          title: Ingress Class
+          default: nginx
+        hosts:
+          type: array
+          title: Hosts
+          items:
+            type: object
+            properties:
+              host:
+                type: string
+                title: Hostname
+    auth:
+      type: object
+      title: Authentication
+      properties:
+        type:
+          type: string
+          title: Auth Type
+          enum: [none, oidc, token]
+          default: oidc
+    dex:
+      type: object
+      title: Built-in Dex (OIDC Provider)
+      properties:
+        enabled:
+          type: boolean
+          title: Enable built-in Dex
+          description: Deploy Dex as OIDC provider alongside KubeVirt UI
+          default: false
+    rbac:
+      type: object
+      title: RBAC
+      properties:
+        create:
+          type: boolean
+          title: Create RBAC resources
+          default: true
+        clusterWide:
+          type: boolean
+          title: Cluster-wide access
+          description: Required for multi-namespace VM management
+          default: true
+
+uiSchema:
+  ingress:
+    hosts:
+      ui:collapsed: true
+  auth:
+    type:
+      ui:widget: select
+  dex:
+    ui:collapsed: true
+  rbac:
+    ui:collapsed: true

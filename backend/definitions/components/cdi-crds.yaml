@@ -1,0 +1,38 @@
+# CDI (Containerized Data Importer) CRDs
+# Must be installed before kubevirt-cdi
+# Custom chart with CRDs extracted from official manifests
+
+id: cdi-crds
+name: CDI CRDs
+description: Custom Resource Definitions for Containerized Data Importer
+category: crds
+categoryName: CRDs
+categoryDescription: Custom Resource Definitions
+icon: "📋"
+priority: 8
+
+# Hidden from UI - auto-included when kubevirt-cdi is selected
+hidden: true
+autoInclude:
+  when:
+    - kubevirt-cdi
+
+chartType: custom
+namespace: o0-crds
+releaseName: cdi-crds
+createNamespace: false
+timeout: 5m
+
+version: "1.64.0"
+appVersion: "v1.64.0"
+
+# CRDs have no dependencies
+dependsOn: []
+
+defaultValues: {}
+
+jsonSchema:
+  type: object
+  properties: {}
+
+uiSchema: {}

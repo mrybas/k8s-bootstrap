@@ -1,9 +1,10 @@
 # MetalLB Configuration
 # IP address pools and L2/BGP advertisements
+# Note: When using with Kube-OVN, add MetalLB IP ranges to Kube-OVN's excludeIps
 
 id: metallb-config
 name: MetalLB Configuration
-description: Configure IP address pools and advertisements for MetalLB
+description: Configure IP address pools and advertisements for MetalLB. Important - exclude these IPs from Kube-OVN IPAM
 category: ingress
 categoryName: Ingress
 icon: "📋"
@@ -14,7 +15,7 @@ docsUrl: https://metallb.universe.tf/configuration/
 requiresOperator: metallb
 
 chartType: custom
-namespace: metallb-system
+namespace: o0-metallb
 releaseName: metallb-config
 createNamespace: false
 
@@ -37,7 +38,7 @@ jsonSchema:
   properties:
     ipAddressPools:
       type: array
-      title: IP Address Pools
+      title: IP Address Pools (Advanced)
       items:
         type: object
         required: [name, addresses]

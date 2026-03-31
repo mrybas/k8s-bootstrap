@@ -1,0 +1,10 @@
+# CDI (Containerized Data Importer) Chart Values
+#
+# This chart uses official CDI manifests without modifications.
+# Configuration is done via the CDI CR after installation.
+#
+# Note: The manifests in templates/ are static YAML files from the official release.
+# They are applied as-is by Helm.
+
+# No configurable values - uses official manifests directly
+{}

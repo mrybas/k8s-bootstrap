@@ -15,7 +15,7 @@ multiInstance: true
 requiresOperator: grafana-operator
 
 chartType: custom
-namespace: monitoring
+namespace: o0-monitoring
 releaseName: grafana
 createNamespace: true
 
@@ -37,12 +37,23 @@ defaultValues:
     enabled: false
     size: 10Gi
   datasources:
-    prometheus:
+    victoriametrics:
       enabled: true
-      url: "http://prometheus-operated.monitoring.svc:9090"
+      url: "http://vmsingle-vmsingle.o0-victoria-metrics.svc:8429"
     loki:
       enabled: false
-      url: "http://loki.monitoring.svc:3100"
+      url: "http://loki.o0-loki.svc:3100"
+  dashboards:
+    nodeExporter:
+      enabled: true
+    kubernetesCluster:
+      enabled: true
+    kubevirtVMs:
+      enabled: true
+    ingressNginx:
+      enabled: false
+    kubeOvn:
+      enabled: false
 
 jsonSchema:
   type: object
@@ -105,17 +116,17 @@ jsonSchema:
       type: object
       title: Datasources
       properties:
-        prometheus:
+        victoriametrics:
           type: object
           properties:
             enabled:
               type: boolean
-              title: Enable Prometheus
+              title: Enable Victoria Metrics
               default: true
             url:
               type: string
-              title: Prometheus URL
-              default: "http://prometheus-operated.monitoring.svc:9090"
+              title: Victoria Metrics URL
+              default: "http://vmsingle-vmsingle.o0-victoria-metrics.svc:8429"
         loki:
           type: object
           properties:
@@ -126,7 +137,47 @@ jsonSchema:
             url:
               type: string
               title: Loki URL
-              default: "http://loki.monitoring.svc:3100"
+              default: "http://loki.o0-loki.svc:3100"
+
+    dashboards:
+      type: object
+      title: Grafana Dashboards
+      properties:
+        nodeExporter:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Node Exporter Dashboard
+              default: true
+        kubernetesCluster:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Kubernetes Cluster Dashboard
+              default: true
+        kubevirtVMs:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: KubeVirt VMs Dashboard
+              default: true
+        ingressNginx:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Ingress-nginx Dashboard
+              default: false
+        kubeOvn:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Kube-OVN Dashboard
+              default: false
 
 uiSchema:
   adminCredentials:
@@ -139,6 +190,8 @@ uiSchema:
       ui:placeholder: "grafana.example.com"
     ui:collapsed: true
   persistence:
+    ui:collapsed: true
+  dashboards:
     ui:collapsed: true
 
 templates:
@@ -214,21 +267,21 @@ templates:
           {{- end }}
       {{- end }}
   datasources.yaml: |
-    {{- if .Values.datasources.prometheus.enabled }}
+    {{- if .Values.datasources.victoriametrics.enabled }}
     ---
     apiVersion: grafana.integreatly.org/v1beta1
     kind: GrafanaDatasource
     metadata:
-      name: prometheus
+      name: victoria-metrics
     spec:
       instanceSelector:
         matchLabels:
           dashboards: {{ .Values.name }}
       datasource:
-        name: Prometheus
+        name: Victoria Metrics
         type: prometheus
         access: proxy
-        url: {{ .Values.datasources.prometheus.url }}
+        url: {{ .Values.datasources.victoriametrics.url }}
         isDefault: true
         editable: false
     {{- end }}
@@ -248,4 +301,90 @@ templates:
         access: proxy
         url: {{ .Values.datasources.loki.url }}
         editable: false
+    {{- end }}
+  dashboards.yaml: |
+    {{- if .Values.dashboards.nodeExporter.enabled }}
+    ---
+    apiVersion: grafana.integreatly.org/v1beta1
+    kind: GrafanaDashboard
+    metadata:
+      name: node-exporter
+    spec:
+      instanceSelector:
+        matchLabels:
+          dashboards: {{ .Values.name }}
+      grafanaCom:
+        id: 1860
+        revision: 37
+      datasources:
+        - inputName: "DS_PROMETHEUS"
+          datasourceName: "Victoria Metrics"
+    {{- end }}
+    {{- if .Values.dashboards.kubernetesCluster.enabled }}
+    ---
+    apiVersion: grafana.integreatly.org/v1beta1
+    kind: GrafanaDashboard
+    metadata:
+      name: kubernetes-cluster
+    spec:
+      instanceSelector:
+        matchLabels:
+          dashboards: {{ .Values.name }}
+      grafanaCom:
+        id: 7249
+        revision: 1
+      datasources:
+        - inputName: "DS_PROMETHEUS"
+          datasourceName: "Victoria Metrics"
+    {{- end }}
+    {{- if .Values.dashboards.kubevirtVMs.enabled }}
+    ---
+    apiVersion: grafana.integreatly.org/v1beta1
+    kind: GrafanaDashboard
+    metadata:
+      name: kubevirt-vms
+    spec:
+      instanceSelector:
+        matchLabels:
+          dashboards: {{ .Values.name }}
+      grafanaCom:
+        id: 11748
+        revision: 1
+      datasources:
+        - inputName: "DS_PROMETHEUS"
+          datasourceName: "Victoria Metrics"
+    {{- end }}
+    {{- if .Values.dashboards.ingressNginx.enabled }}
+    ---
+    apiVersion: grafana.integreatly.org/v1beta1
+    kind: GrafanaDashboard
+    metadata:
+      name: ingress-nginx
+    spec:
+      instanceSelector:
+        matchLabels:
+          dashboards: {{ .Values.name }}
+      grafanaCom:
+        id: 9614
+        revision: 1
+      datasources:
+        - inputName: "DS_PROMETHEUS"
+          datasourceName: "Victoria Metrics"
+    {{- end }}
+    {{- if .Values.dashboards.kubeOvn.enabled }}
+    ---
+    apiVersion: grafana.integreatly.org/v1beta1
+    kind: GrafanaDashboard
+    metadata:
+      name: kube-ovn
+    spec:
+      instanceSelector:
+        matchLabels:
+          dashboards: {{ .Values.name }}
+      grafanaCom:
+        id: 20756
+        revision: 1
+      datasources:
+        - inputName: "DS_PROMETHEUS"
+          datasourceName: "Victoria Metrics"
     {{- end }}

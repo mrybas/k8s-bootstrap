@@ -1,0 +1,48 @@
+# Victoria Metrics CRDs
+# Uses official victoria-metrics-operator chart with only CRDs enabled
+# Must be installed before victoria-metrics-operator
+
+id: victoria-metrics-crds
+name: Victoria Metrics CRDs
+description: Custom Resource Definitions for Victoria Metrics Operator
+category: crds
+categoryName: CRDs
+categoryDescription: Custom Resource Definitions
+icon: "📋"
+priority: 6
+
+# Hidden from UI - auto-included when victoria-metrics-operator is selected
+hidden: true
+autoInclude:
+  when:
+    - victoria-metrics-operator
+
+chartType: upstream
+namespace: o0-crds
+releaseName: victoria-metrics-crds
+createNamespace: false
+timeout: 5m
+
+upstream:
+  repository: https://victoriametrics.github.io/helm-charts
+  chartName: victoria-metrics-operator
+  version: "0.58.1"
+
+# CRDs have no dependencies
+dependsOn: []
+
+# Only install CRDs, disable everything else
+defaultValues:
+  crds:
+    enabled: true
+  replicaCount: 0
+  admissionWebhooks:
+    enabled: false
+  serviceMonitor:
+    enabled: false
+
+jsonSchema:
+  type: object
+  properties: {}
+
+uiSchema: {}

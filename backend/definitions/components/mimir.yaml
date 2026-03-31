@@ -12,7 +12,7 @@ priority: 50
 docsUrl: https://grafana.com/docs/mimir/latest/
 
 chartType: upstream
-namespace: mimir
+namespace: o0-mimir
 releaseName: mimir
 createNamespace: true
 timeout: 15m

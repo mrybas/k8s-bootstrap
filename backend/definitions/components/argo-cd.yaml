@@ -12,7 +12,7 @@ priority: 40
 docsUrl: https://argo-cd.readthedocs.io/
 
 chartType: upstream
-namespace: argocd
+namespace: o0-argocd
 releaseName: argo-cd
 createNamespace: true
 timeout: 10m
@@ -20,8 +20,8 @@ timeout: 10m
 upstream:
   repository: https://argoproj.github.io/argo-helm
   chartName: argo-cd
-  version: "9.3.3"
-  appVersion: "2.13.2"
+  version: "9.4.1"
+  appVersion: "2.14.2"
 
 dependsOn: []
 

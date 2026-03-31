@@ -6,13 +6,14 @@ import {
   Boxes, Shield, Globe, BarChart3, Settings, 
   ChevronRight, ChevronDown, Download, Github, Terminal,
   Sparkles, Check, X, Loader2, FileCode,
-  Upload
+  Upload, Package
 } from 'lucide-react';
 import yaml from 'js-yaml';
 import { ComponentCard } from '@/components/ComponentCard';
 import { ConfigModal } from '@/components/ConfigModal';
 import { GenerateModal } from '@/components/GenerateModal';
 import { InstanceModal } from '@/components/InstanceModal';
+import { BundleWizard } from '@/components/BundleWizard';
 import { Header } from '@/components/Header';
 import { Hero } from '@/components/Hero';
 import { Footer } from '@/components/Footer';
@@ -37,6 +38,8 @@ export default function Home() {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [importedConfig, setImportedConfig] = useState<{ clusterName?: string; repoUrl?: string; branch?: string } | null>(null);
   const [managingInstances, setManagingInstances] = useState<Component | null>(null);
+  const [showBundleModal, setShowBundleModal] = useState(false);
+  const [cniBootstrap, setCniBootstrap] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCategories();
@@ -197,6 +200,43 @@ export default function Home() {
     setManagingInstances(null);
   };
 
+  // Apply bundle selections
+  const applyBundle = (
+    componentIds: string[], 
+    parameterValues: Record<string, Record<string, any>>,
+    cniBootstrapComponent?: string
+  ) => {
+    setSelections(prev => {
+      const newMap = new Map(prev);
+      
+      // Enable selected components and apply their values
+      componentIds.forEach(id => {
+        const current = newMap.get(id);
+        if (current) {
+          newMap.set(id, {
+            ...current,
+            enabled: true,
+            values: parameterValues[id] || current.values,
+          });
+        }
+      });
+      
+      return newMap;
+    });
+
+    // Set CNI bootstrap component if provided
+    if (cniBootstrapComponent) {
+      setCniBootstrap(cniBootstrapComponent);
+    }
+
+    // Show success message
+    setImportMessage({
+      type: 'success',
+      text: `Applied bundle with ${componentIds.length} components${cniBootstrapComponent ? ' (CNI will be bootstrapped directly)' : ''}`
+    });
+    setTimeout(() => setImportMessage(null), 5000);
+  };
+
   const getSelectedCount = () => {
     let count = 0;
     selections.forEach(s => { 
@@ -291,8 +331,15 @@ export default function Home() {
               We'll generate a complete GitOps repository with Flux manifests.
             </p>
             
-            {/* Load previous config */}
-            <div className="flex justify-center">
+            {/* Quick actions */}
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => setShowBundleModal(true)}
+                className="btn-primary flex items-center gap-2"
+              >
+                <Package className="w-4 h-4" />
+                Quick Start Bundle
+              </button>
               <label className="btn-secondary flex items-center gap-2 cursor-pointer">
                 <Upload className="w-4 h-4" />
                 Load Previous Config
@@ -392,7 +439,10 @@ export default function Home() {
                               category.components.some(inst => inst.requiresOperator === c.id)
                             );
                             // All components that require another component (multi-instance or not)
-                            const dependents = category.components.filter(c => c.requiresOperator);
+                            // Exclude operators from dependents to avoid duplicate rendering
+                            const dependents = category.components.filter(c => 
+                              c.requiresOperator && !operators.includes(c)
+                            );
                             const standalone = category.components.filter(c => 
                               !operators.includes(c) && !c.requiresOperator
                             );
@@ -557,9 +607,16 @@ export default function Home() {
             selections={getSelectedComponents()}
             onClose={() => setShowGenerate(false)}
             importedConfig={importedConfig}
+            cniBootstrap={cniBootstrap}
           />
         )}
       </AnimatePresence>
+
+      {/* Bundle Wizard */}
+      <BundleWizard
+        isOpen={showBundleModal}
+        onClose={() => setShowBundleModal(false)}
+      />
     </div>
   );
 }

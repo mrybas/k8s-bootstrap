@@ -12,7 +12,7 @@ priority: 50
 docsUrl: https://docs.gitea.com/
 
 chartType: upstream
-namespace: gitea
+namespace: o0-gitea
 releaseName: gitea
 createNamespace: true
 timeout: 10m
@@ -20,8 +20,8 @@ timeout: 10m
 upstream:
   repository: https://dl.gitea.com/charts/
   chartName: gitea
-  version: "12.4.0"
-  appVersion: "1.22.4"
+  version: "12.5.0"
+  appVersion: "1.23.1"
 
 dependsOn: []
 

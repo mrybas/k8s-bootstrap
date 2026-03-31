@@ -13,7 +13,7 @@ isOperator: true
 docsUrl: https://rook.io/docs/rook/latest/Getting-Started/intro/
 
 chartType: upstream
-namespace: rook-ceph
+namespace: o0-rook-ceph
 releaseName: rook-ceph
 createNamespace: true
 timeout: 10m
@@ -21,8 +21,8 @@ timeout: 10m
 upstream:
   repository: https://charts.rook.io/release
   chartName: rook-ceph
-  version: "v1.18.9"
-  appVersion: "1.16.0"
+  version: "v1.19.1"
+  appVersion: "1.19.1"
 
 suggestsInstances:
   - rook-ceph-cluster

@@ -12,7 +12,7 @@ priority: 55
 docsUrl: https://docs.victoriametrics.com/vmagent/
 
 chartType: upstream
-namespace: victoria-metrics
+namespace: o0-victoria-metrics
 releaseName: vmagent
 createNamespace: true
 timeout: 5m
@@ -20,7 +20,7 @@ timeout: 5m
 upstream:
   repository: https://victoriametrics.github.io/helm-charts/
   chartName: victoria-metrics-agent
-  version: "0.29.0"
+  version: "0.31.0"
   appVersion: "v1.106.1"
 
 dependsOn:
@@ -33,7 +33,12 @@ defaultValues:
   replicaCount: 1
   # At least one remoteWrite endpoint is required
   remoteWrite:
-    - url: http://victoria-metrics-single:8428/api/v1/write
+    - url: http://vmsingle-vmsingle.o0-victoria-metrics.svc:8429/api/v1/write
+  # Ingress for VMAgent UI (targets status, config)
+  ingress:
+    enabled: false
+    hosts: []
+    ingressClassName: ""
 
 jsonSchema:
   type: object
@@ -54,6 +59,31 @@ jsonSchema:
           url:
             type: string
             title: URL
+    ingress:
+      type: object
+      title: Ingress
+      description: Expose VMAgent UI for targets status
+      properties:
+        enabled:
+          type: boolean
+          title: Enable Ingress
+          default: false
+        hosts:
+          type: array
+          title: Hosts
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                title: Hostname
+              path:
+                type: string
+                title: Path
+                default: "/"
+        ingressClassName:
+          type: string
+          title: Ingress Class Name
     extraArgs:
       type: object
       title: Extra Arguments

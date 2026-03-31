@@ -1,0 +1,22 @@
+apiVersion: v2
+name: kubevirt-operator
+version: 1.7.0
+appVersion: v1.7.0
+description: |
+  KubeVirt - Run Virtual Machines on Kubernetes
+  
+  This chart installs the KubeVirt operator and creates the KubeVirt CR.
+  Manifests are from the official KubeVirt release.
+  
+  Source: https://github.com/kubevirt/kubevirt/releases/tag/v1.7.0
+type: application
+home: https://kubevirt.io/
+sources:
+  - https://github.com/kubevirt/kubevirt
+keywords:
+  - kubevirt
+  - virtualization
+  - vm
+  - virtual-machine
+maintainers:
+  - name: k8s-bootstrap

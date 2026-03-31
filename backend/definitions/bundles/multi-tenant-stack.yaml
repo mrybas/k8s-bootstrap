@@ -1,0 +1,569 @@
+# Multi-Tenant Stack Bundle
+# Extends KubeVirt Stack with tenant isolation via Kamaji
+# Tenants get their own Kubernetes API server (as Pods) with shared or dedicated nodes
+# PostgreSQL (kine) as DataStore backend for tenant control planes
+
+id: multi-tenant-stack
+name: Multi-Tenant Platform
+description: IaaS platform with tenant isolation - each tenant gets a virtual Kubernetes cluster with KubeVirt, storage, and networking
+icon: "🏢"
+category: multi-tenancy
+hidden: true
+
+# Components included in this bundle
+components:
+  # === CNI - Kube-OVN (always required for VM networking + tenant subnet isolation) ===
+  - id: kube-ovn
+    required: true
+    description: Primary CNI with OVN - VPC isolation, per-tenant subnets, live migration support
+
+  # === CNI Chaining (optional - for Kube-OVN + Cilium) ===
+  - id: cilium-cni-chaining
+    required: false
+    default_enabled: true
+    hidden: true
+    description: ConfigMap for Cilium chaining with Kube-OVN
+    depends_on_bundle: cilium
+
+  # === Cilium (optional - for eBPF policies and observability) ===
+  - id: cilium
+    required: false
+    default_enabled: true
+    description: eBPF network policies, micro-segmentation, and Hubble observability
+
+  # === Multi-NIC support for VMs ===
+  - id: multus-cni
+    required: true
+    description: Multiple network interfaces for VMs (management, tenant, external)
+
+  # === Cluster DNS ===
+  - id: coredns
+    required: true
+    description: Cluster DNS for service discovery
+  
+  # === TLS Certificates (required by Kamaji) ===
+  - id: cert-manager-crds
+    required: true
+    hidden: true
+    description: cert-manager CRDs
+
+  - id: cert-manager
+    required: true
+    description: TLS certificate management (required by Kamaji webhooks)
+    depends_on_bundle: cert-manager-crds
+
+  # === KubeVirt core ===
+  - id: kubevirt-crds
+    required: true
+    hidden: true
+    description: KubeVirt CRDs
+
+  - id: kubevirt-operator
+    required: true
+    description: VM management operator
+    depends_on_bundle: kubevirt-crds
+
+  - id: cdi-crds
+    required: true
+    hidden: true
+    description: CDI CRDs
+
+  - id: kubevirt-cdi
+    required: true
+    description: Disk image import and management
+    depends_on_bundle: cdi-crds
+
+  # === Multi-tenancy (Kamaji + PostgreSQL) ===
+  - id: cloudnative-pg
+    required: true
+    hidden: true
+    description: PostgreSQL operator for Kamaji DataStore (kine backend)
+
+  - id: cnpg-cluster
+    required: true
+    hidden: true
+    description: PostgreSQL cluster for Kamaji DataStore
+    depends_on_bundle: cloudnative-pg
+
+  - id: kamaji-crds
+    required: true
+    hidden: true
+    description: Kamaji CRDs
+
+  - id: kamaji
+    required: true
+    hidden: true
+    description: Tenant control plane manager - virtual K8s clusters as Pods
+    depends_on_bundle: kamaji-crds
+
+  - id: kamaji-datastore
+    required: true
+    hidden: true
+    description: PostgreSQL DataStore for Kamaji (kine)
+    depends_on_bundle: kamaji
+
+  # === Cluster API ===
+  - id: capi-operator
+    required: true
+    hidden: true
+    description: Cluster API Operator - manages provider lifecycle
+    depends_on_bundle: cert-manager
+
+  - id: capi-providers
+    required: true
+    hidden: true
+    description: CAPI providers (Core, Bootstrap, Kamaji CP, KubeVirt Infra)
+    depends_on_bundle: capi-operator
+
+  # === Storage ===
+  - id: longhorn
+    required: false
+    default_enabled: true
+    hidden: true
+    description: Distributed block storage (simple setup, includes UI)
+    exclusive_group: storage
+
+  - id: piraeus-crds
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Piraeus/Linstor CRDs
+
+  - id: piraeus-operator
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Linstor operator (high performance DRBD storage)
+    exclusive_group: storage
+    depends_on_bundle: piraeus-crds
+
+  - id: linstor-cluster
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Linstor cluster configuration
+    depends_on_bundle: piraeus-operator
+
+  - id: linstor-storage-pool
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Storage pool configuration
+    depends_on_bundle: linstor-cluster
+
+  # === Load Balancer ===
+  - id: metallb
+    required: false
+    default_enabled: true
+    description: LoadBalancer for bare-metal (tenant API servers exposed via LoadBalancer)
+
+  - id: metallb-config
+    required: false
+    default_enabled: true
+    hidden: true
+    description: MetalLB IP pool configuration
+    depends_on_bundle: metallb
+
+  # === Ingress ===
+  - id: ingress-nginx
+    required: false
+    default_enabled: true
+    hidden: true
+    description: NGINX Ingress controller
+    exclusive_group: ingress
+
+  - id: ingress-traefik
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Traefik Ingress controller
+    exclusive_group: ingress
+
+  # === S3 Storage (for backups) ===
+  - id: minio
+    required: false
+    default_enabled: true
+    description: S3-compatible storage for Velero backups and artifacts
+
+  # === Backup ===
+  - id: snapshot-controller
+    required: false
+    default_enabled: true
+    description: Volume snapshots for VMs
+
+  - id: velero-crds
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Velero CRDs
+    depends_on_bundle: velero
+
+  - id: velero
+    required: false
+    default_enabled: false
+    description: Backup and disaster recovery for VMs and tenant clusters
+
+  # === Monitoring Stack ===
+  - id: prometheus-operator-crds
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Prometheus CRDs
+
+  - id: victoria-metrics-crds
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Victoria Metrics CRDs
+    depends_on_bundle: prometheus-operator-crds
+
+  - id: victoria-metrics-operator
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Victoria Metrics operator
+    depends_on_bundle: victoria-metrics-crds
+
+  - id: victoria-metrics-single
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Victoria Metrics single instance
+    depends_on_bundle: victoria-metrics-operator
+
+  - id: alloy
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Metrics collection agent
+    depends_on_bundle: victoria-metrics-single
+
+  - id: kube-state-metrics
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Kubernetes object state metrics
+    depends_on_bundle: prometheus-operator-crds
+
+  - id: grafana-operator
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Grafana operator
+    depends_on_bundle: prometheus-operator-crds
+
+  - id: grafana-instance
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Grafana dashboards
+    depends_on_bundle: grafana-operator
+
+# CNI Bootstrap configuration
+cni_bootstrap:
+  enabled: true
+  component: kube-ovn
+  description: |
+    Installs Cilium (chaining mode) + Kube-OVN for tenant subnet isolation.
+
+# DNS Bootstrap configuration
+dns_bootstrap:
+  enabled: true
+  component: coredns
+
+# Parameters for user configuration
+parameters:
+  # ==================== ENVIRONMENT ====================
+  - id: environment
+    name: Environment Type
+    description: Where is your cluster running?
+    type: select
+    options:
+      - value: bare-metal
+        label: Bare-metal / On-prem
+      - value: cloud
+        label: Cloud (managed K8s)
+    default: bare-metal
+    required: true
+    category: environment
+
+  # ==================== CNI ====================
+  - id: cni_mode
+    name: CNI Configuration
+    description: Choose CNI setup
+    type: select
+    options:
+      - value: kube-ovn-cilium
+        label: Kube-OVN + Cilium (recommended - eBPF policies + tenant isolation)
+      - value: kube-ovn-only
+        label: Kube-OVN only
+    default: kube-ovn-cilium
+    required: true
+    category: networking
+
+  - id: bootstrap_cni
+    name: Bootstrap CNI
+    description: Install CNI before Flux (required for clusters without CNI)
+    type: boolean
+    default: true
+    required: false
+    category: networking
+    show_if: cni_mode == "kube-ovn-cilium"
+
+  # ==================== MULTI-TENANCY ====================
+  - id: tenant_datastore
+    name: Tenant DataStore Backend
+    description: Where to store tenant control plane state
+    type: select
+    options:
+      - value: postgresql
+        label: PostgreSQL via kine (recommended - simple ops, shared DB)
+      - value: etcd
+        label: Built-in etcd (higher performance, more resources)
+    default: postgresql
+    required: true
+    category: multi-tenancy
+
+  - id: enable_capi
+    name: Enable Cluster API
+    description: Declarative lifecycle management for tenant clusters (create, scale, upgrade, delete)
+    type: boolean
+    default: true
+    category: multi-tenancy
+
+  - id: capi_infra_kubevirt
+    name: KubeVirt Infrastructure Provider
+    description: Create tenant worker nodes as KubeVirt VMs on shared hosts
+    type: boolean
+    default: true
+    category: multi-tenancy
+    show_if: enable_capi == true
+
+  # ==================== INGRESS ====================
+  - id: ingress_controller
+    name: Ingress Controller
+    description: Choose ingress controller
+    type: select
+    options:
+      - value: nginx
+        label: NGINX (recommended)
+      - value: traefik
+        label: Traefik
+      - value: none
+        label: None
+    default: nginx
+    required: true
+    category: ingress
+
+  - id: ingress_ip
+    name: Ingress IP Address
+    description: "Single IP for ingress controller LoadBalancer"
+    type: string
+    default: ""
+    required: true
+    category: ingress
+    show_if: environment == "bare-metal" && ingress_controller != "none"
+    placeholder: "192.168.1.100"
+
+  - id: base_domain
+    name: Base Domain
+    description: "Base domain for services (leave empty for IP.nip.io)"
+    type: string
+    default: ""
+    required: false
+    category: ingress
+    show_if: ingress_controller != "none"
+
+  # ==================== STORAGE ====================
+  - id: storage_backend
+    name: Storage Backend
+    description: Choose distributed storage solution
+    type: select
+    options:
+      - value: longhorn
+        label: Longhorn (simple, includes UI)
+      - value: linstor
+        label: Linstor (high performance DRBD)
+    default: longhorn
+    required: true
+    category: storage
+
+  - id: storage_replicas
+    name: Storage Replicas
+    description: Number of replicas for each volume
+    type: select
+    options:
+      - "1"
+      - "2"
+      - "3"
+    default: "2"
+    required: true
+    category: storage
+
+  # ==================== S3 / BACKUP ====================
+  - id: enable_minio
+    name: Enable MinIO
+    description: Deploy S3-compatible storage for backups and artifacts
+    type: boolean
+    default: true
+    category: storage
+
+  - id: minio_storage_size
+    name: MinIO Storage Size
+    description: Storage size for MinIO
+    type: select
+    options:
+      - "20Gi"
+      - "50Gi"
+      - "100Gi"
+      - "500Gi"
+    default: "50Gi"
+    required: true
+    category: storage
+    show_if: enable_minio == true
+
+  - id: enable_backup
+    name: Enable VM Backup
+    description: Deploy Velero for VM and tenant cluster backups
+    type: boolean
+    default: false
+    category: backup
+
+  # ==================== OBSERVABILITY ====================
+  - id: enable_hubble
+    name: Enable Hubble
+    description: Network observability (metrics, flows, service map)
+    type: boolean
+    default: true
+    category: observability
+    show_if: cni_mode == "kube-ovn-cilium"
+
+  - id: enable_snapshots
+    name: Enable Volume Snapshots
+    description: Support for VM snapshots
+    type: boolean
+    default: true
+    category: storage
+
+  - id: enable_monitoring
+    name: Enable Monitoring
+    description: Deploy Victoria Metrics + Grafana
+    type: boolean
+    default: false
+    category: observability
+
+  - id: metrics_retention
+    name: Metrics Retention
+    description: How long to keep metrics data
+    type: select
+    options:
+      - value: "7d"
+        label: "7 days"
+      - value: "14d"
+        label: "14 days"
+      - value: "30d"
+        label: "30 days"
+    default: "14d"
+    required: true
+    category: observability
+    show_if: enable_monitoring == true
+
+# Parameter categories
+parameter_categories:
+  - id: environment
+    name: Environment
+    order: 1
+  - id: networking
+    name: Networking
+    order: 2
+  - id: multi-tenancy
+    name: Multi-tenancy
+    description: Tenant isolation settings
+    order: 3
+  - id: ingress
+    name: Ingress & Domains
+    order: 4
+  - id: storage
+    name: Storage
+    order: 5
+  - id: backup
+    name: Backup
+    order: 6
+  - id: observability
+    name: Observability
+    order: 7
+
+# Notes
+notes:
+  - title: Multi-tenancy Architecture
+    content: |
+      Kamaji creates tenant Kubernetes API servers as lightweight Pods.
+      Each tenant gets: API server + controller-manager + scheduler.
+      Tenant state is stored in shared PostgreSQL via kine (or dedicated etcd).
+      Tenant workers can be shared host nodes or KubeVirt VMs.
+
+  - title: Tenant Networking
+    content: |
+      Each tenant gets isolated Kube-OVN Subnets (L2 isolation).
+      Multus provides multiple network interfaces per VM.
+      MetalLB assigns per-tenant LoadBalancer IPs for API endpoints.
+
+  - title: PostgreSQL DataStore
+    content: |
+      CloudNativePG manages HA PostgreSQL for Kamaji.
+      Each tenant gets a separate database in the shared cluster.
+      Simpler ops than per-tenant etcd (one backup, one cluster).
+
+# Installation order
+install_order:
+  # CNI
+  - cilium
+  - cilium-cni-chaining
+  - kube-ovn
+  - multus-cni
+  # DNS
+  - coredns
+  # TLS
+  - cert-manager-crds
+  - cert-manager
+  # Load Balancer & Ingress
+  - metallb
+  - metallb-config
+  - ingress-nginx
+  - ingress-traefik
+  # Storage
+  - snapshot-controller
+  - longhorn
+  - piraeus-crds
+  - piraeus-operator
+  - linstor-cluster
+  - linstor-storage-pool
+  # S3
+  - minio
+  # Database (for Kamaji)
+  - cloudnative-pg
+  - cnpg-cluster
+  # Multi-tenancy
+  - kamaji-crds
+  - kamaji
+  - kamaji-datastore
+  # Cluster API
+  - capi-operator
+  - capi-providers
+  # Monitoring
+  - prometheus-operator-crds
+  - victoria-metrics-crds
+  - victoria-metrics-operator
+  - victoria-metrics-single
+  - alloy
+  - kube-state-metrics
+  - grafana-operator
+  - grafana-instance
+  # Backup
+  - velero-crds
+  - velero
+  # KubeVirt
+  - kubevirt-crds
+  - kubevirt-operator
+  - cdi-crds
+  - kubevirt-cdi

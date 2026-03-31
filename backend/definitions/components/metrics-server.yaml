@@ -12,7 +12,7 @@ priority: 5
 docsUrl: https://github.com/kubernetes-sigs/metrics-server
 
 chartType: upstream
-namespace: metrics-server
+namespace: o0-metrics-server
 releaseName: metrics-server
 createNamespace: true
 timeout: 5m
