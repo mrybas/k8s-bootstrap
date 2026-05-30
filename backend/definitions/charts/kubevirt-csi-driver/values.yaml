@@ -13,6 +13,15 @@ images:
   livenessProbe: quay.io/openshift/origin-csi-livenessprobe:4.22.0
   nodeDriverRegistrar: quay.io/openshift/origin-csi-node-driver-registrar:4.22.0
 
+# Controller scheduling.
+# scheduleOnControlPlane: pin the controller Deployment to control-plane
+# nodes. Default false because Kamaji tenants have no control-plane nodes
+# (the CP runs as pods in the host cluster) — pinning would leave the
+# controller Pending. Set true only for self-managed tenant clusters that
+# expose real control-plane nodes.
+controller:
+  scheduleOnControlPlane: false
+
 # Secret (in the TENANT control plane) holding the HOST cluster kubeconfig.
 # Created / replicated by the kubevirt_ui addon flow.
 infraClusterKubeconfigSecret:

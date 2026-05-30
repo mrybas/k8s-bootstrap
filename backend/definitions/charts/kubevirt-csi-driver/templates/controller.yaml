@@ -39,6 +39,13 @@ spec:
       enableServiceLinks: false
       serviceAccount: kubevirt-csi-controller-sa
       priorityClassName: system-cluster-critical
+      {{- if .Values.controller.scheduleOnControlPlane }}
+      # Pin the controller to control-plane nodes. Only valid for tenants
+      # that actually HAVE control-plane nodes — Kamaji tenants run the
+      # control plane as pods in the host cluster and expose only worker
+      # nodes, so this selector would keep the controller Pending forever.
+      # Default is false (see values.yaml); enable only for self-managed
+      # tenant clusters with real CP nodes.
       nodeSelector:
         node-role.kubernetes.io/control-plane: ""
       tolerations:
@@ -50,6 +57,11 @@ spec:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
           effect: NoSchedule
+      {{- else }}
+      # Schedule anywhere — Kamaji tenants only have worker nodes.
+      tolerations:
+        - operator: Exists
+      {{- end }}
       containers:
         - name: csi-driver
           image: {{ .Values.images.csiDriver | default "quay.io/kubevirt/kubevirt-csi-driver:latest" }}
