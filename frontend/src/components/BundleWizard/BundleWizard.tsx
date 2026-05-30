@@ -495,6 +495,12 @@ export function BundleWizard({ isOpen, onClose }: BundleWizardProps) {
           }
           
           // Ingress controller - use specific MetalLB pool
+          // When Cilium is chained with kube-ovn, also opt the Service out of
+          // Cilium's BPF LoadBalancer DNAT (`service.cilium.io/type: ClusterIP`)
+          // so VIP traffic from in-VPC pods isn't rewritten before kube-ovn
+          // routing kicks in.
+          const ciliumChained = cniMode === 'kube-ovn-cilium';
+
           if (c.id === 'ingress-nginx' && ingressIp) {
             Object.assign(values, {
               controller: {
@@ -502,18 +508,20 @@ export function BundleWizard({ isOpen, onClose }: BundleWizardProps) {
                   type: 'LoadBalancer',
                   annotations: {
                     'metallb.universe.tf/address-pool': 'ingress-nginx',
+                    ...(ciliumChained && { 'service.cilium.io/type': 'ClusterIP' }),
                   },
                 },
               },
             });
           }
-          
+
           if (c.id === 'ingress-traefik' && ingressIp) {
             Object.assign(values, {
               service: {
                 type: 'LoadBalancer',
                 annotations: {
                   'metallb.universe.tf/address-pool': 'ingress-traefik',
+                  ...(ciliumChained && { 'service.cilium.io/type': 'ClusterIP' }),
                 },
               },
             });
