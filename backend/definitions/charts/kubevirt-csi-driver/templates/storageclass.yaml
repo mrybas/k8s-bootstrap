@@ -15,6 +15,16 @@ metadata:
     storageclass.kubernetes.io/is-default-class: "true"
   {{- end }}
 provisioner: csi.kubevirt.io
+{{- /* PVC resize: the backing infra DataVolume / PVC must also live on an
+       expandable host StorageClass for this to take effect. Defaults true
+       to match the proven-working manifest; opt out per-SC with
+       allowVolumeExpansion: false. hasKey (not `default`) so an explicit
+       false isn't swallowed by Helm's empty-coalescing default. */}}
+{{- if hasKey . "allowVolumeExpansion" }}
+allowVolumeExpansion: {{ .allowVolumeExpansion }}
+{{- else }}
+allowVolumeExpansion: true
+{{- end }}
 parameters:
   infraStorageClassName: {{ .infraStorageClassName | default "" | quote }}
   bus: {{ .bus | default "scsi" | quote }}
