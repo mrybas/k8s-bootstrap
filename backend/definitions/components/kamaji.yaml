@@ -38,6 +38,17 @@ dependsOn:
 defaultValues:
   image:
     tag: 26.5.5-edge
+  # Kamaji manager memory scales with the number of TenantControlPlanes
+  # (per-tenant informer caches). The upstream default 100Mi OOMKills at
+  # ~4 tenants; 512Mi comfortably holds dozens. Bump further (or make this
+  # a larger value) as tenant count grows — this is the practical scaling
+  # knob, not anything network-side.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
   # Disable built-in etcd - we use PostgreSQL via kine
   etcd:
     deploy: false
