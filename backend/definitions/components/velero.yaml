@@ -21,9 +21,25 @@ dependsOn:
   - velero-crds
 
 defaultValues:
+  # BOTH plugins must be present. The generator deep_merges defaultValues
+  # with user values, and for LISTS deep_merge REPLACES (doesn't append) —
+  # so the old BundleWizard, which set initContainers to just the kubevirt
+  # plugin, silently dropped the aws plugin (→ "unable to locate ObjectStore
+  # plugin velero.io/aws"). Both live here now; the wizard no longer sets
+  # initContainers.
+  #   - velero-plugin-for-aws: S3/MinIO ObjectStore (velero.io/aws).
+  #   - kubevirt-velero-plugin: VM-aware BackupItemActions so a backup that
+  #     includes a VirtualMachine also pulls its DataVolumes/PVCs (required
+  #     for the folder→env→VM backup wizard's per-VM selection).
   initContainers:
     - name: velero-plugin-for-aws
       image: mirror.gcr.io/velero/velero-plugin-for-aws:v1.12.1
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - mountPath: /target
+          name: plugins
+    - name: kubevirt-velero-plugin
+      image: quay.io/kubevirt/kubevirt-velero-plugin:v0.7.0
       imagePullPolicy: IfNotPresent
       volumeMounts:
         - mountPath: /target

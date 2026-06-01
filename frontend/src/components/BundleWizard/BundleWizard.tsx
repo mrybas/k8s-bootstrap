@@ -589,18 +589,11 @@ export function BundleWizard({ isOpen, onClose }: BundleWizardProps) {
             }
           }
           
-          // Velero values - add kubevirt-velero-plugin
+          // Velero values. NOTE: do NOT set initContainers here — the
+          // generator's deep_merge REPLACES list values, so setting them
+          // would drop the aws plugin from defaultValues. Both plugins
+          // (aws + kubevirt) live in the velero component defaultValues.
           if (c.id === 'velero') {
-            Object.assign(values, {
-              initContainers: [
-                {
-                  name: 'kubevirt-velero-plugin',
-                  image: 'quay.io/kubevirt/kubevirt-velero-plugin:v0.7.0',
-                  imagePullPolicy: 'IfNotPresent',
-                  volumeMounts: [{ mountPath: '/target', name: 'plugins' }],
-                },
-              ],
-            });
             if (enableMonitoring) {
               values.serviceMonitor = { enabled: true };
             }
