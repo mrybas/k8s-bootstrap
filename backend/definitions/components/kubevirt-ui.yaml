@@ -19,7 +19,7 @@ timeout: 10m
 upstream:
   repository: oci://ghcr.io/mrybas/kubevirt-ui/charts
   chartName: kubevirt-ui
-  version: "2026.06.11"
+  version: "2026.06.15"
 
 dependsOn:
   - kubevirt-crds
