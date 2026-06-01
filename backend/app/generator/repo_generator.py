@@ -422,8 +422,8 @@ class RepoGenerator:
             
             # Dynamic values: Cilium chaining mode with Kube-OVN
             # Applied AFTER user merge so chaining overrides take precedence
+            enabled_ids = {c["definition"]["id"] for c in components}
             if comp_id == "cilium":
-                enabled_ids = {c["definition"]["id"] for c in components}
                 if "kube-ovn" in enabled_ids and "cilium-cni-chaining" in enabled_ids:
                     chaining_values = {
                         "cni": {
@@ -442,7 +442,22 @@ class RepoGenerator:
                         "ipam": {"mode": "cluster-pool"}
                     }
                     merged_values = deep_merge(merged_values, chaining_values)
-            
+
+            # Cilium chaining mode ONLY: opt the ingress LB Service out of
+            # Cilium's BPF LoadBalancer DNAT (service.cilium.io/type=ClusterIP)
+            # so tc-bpf doesn't rewrite the MetalLB VIP -> ingress pod IP
+            # before kube-ovn routing (which breaks the VIP for pods in custom
+            # kube-ovn VPCs). Gated on cilium-cni-chaining being enabled —
+            # under Cilium-as-primary-LB this annotation would DISABLE the LB,
+            # so it must NOT be applied there. deep_merge keeps the wizard's
+            # metallb pool annotation alongside it.
+            if comp_id in ("ingress-traefik", "ingress-nginx") and "cilium-cni-chaining" in enabled_ids:
+                cilium_optout = {"service.cilium.io/type": "ClusterIP"}
+                if comp_id == "ingress-traefik":
+                    merged_values = deep_merge(merged_values, {"service": {"annotations": cilium_optout}})
+                else:  # ingress-nginx nests the controller Service
+                    merged_values = deep_merge(merged_values, {"controller": {"service": {"annotations": cilium_optout}}})
+
             # For wrapper (upstream) charts, wrap values in upstream chart name
             # This is required because wrapper charts use Helm dependencies
             # Skip for custom and manifest charts - they have their own structure
