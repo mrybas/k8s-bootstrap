@@ -1,0 +1,31 @@
+apiVersion: v2
+name: cert-manager-crds
+version: 1.19.3
+appVersion: "v1.19.3"
+description: |
+  cert-manager CustomResourceDefinitions ONLY — no controller, webhook,
+  or cainjector.
+
+  Previously this component pointed at the full jetstack `cert-manager`
+  chart with `installCRDs: true`, which ALWAYS renders the controller +
+  webhook + cainjector Deployments (installCRDs only ADDS the CRDs, it
+  does not make the chart CRDs-only). That deployed a second cert-manager
+  alongside the `cert-manager` component → two controllers/webhooks
+  fighting over the same CRDs. Vendoring the CRDs directly (mirrors the
+  gateway-api-crd chart) makes this release CRDs-only.
+
+  Source: https://github.com/cert-manager/cert-manager/releases/download/v1.19.3/cert-manager.crds.yaml
+  The six kinds: certificates, certificaterequests, issuers, clusterissuers,
+  orders, challenges. Pure v1 (no CRD conversion webhook → no runtime
+  dependency). Carry `helm.sh/resource-policy: keep` so they survive
+  uninstall. Keep this file's version in lockstep with the cert-manager
+  controller version in components/cert-manager.yaml.
+type: application
+home: https://cert-manager.io/
+sources:
+  - https://github.com/cert-manager/cert-manager
+keywords:
+  - cert-manager
+  - crds
+maintainers:
+  - name: k8s-bootstrap

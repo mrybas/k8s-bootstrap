@@ -17,18 +17,19 @@ autoInclude:
   when:
     - cert-manager
 
-chartType: upstream
+# CRDs-only: vendored chart at definitions/charts/cert-manager-crds/
+# (mirrors gateway-api-crd). The repo_generator detects the bundled
+# Chart.yaml and copytrees the dir into the workspace; Helm applies the
+# CRDs in crds/. Pointing at the full jetstack chart with installCRDs:true
+# (the old setup) deployed a SECOND cert-manager controller/webhook
+# alongside the cert-manager component — this fixes that.
+chartType: custom
 namespace: o0-crds
 releaseName: cert-manager-crds
 createNamespace: false  # Created by repo_generator for all CRDs
 
-upstream:
-  repository: https://charts.jetstack.io
-  chartName: cert-manager
-  version: "v1.19.3"
+version: "1.19.3"
+appVersion: "v1.19.3"
 
-# Only install CRDs, not the controller
-defaultValues:
-  installCRDs: true
-# Note: This is a workaround - ideally use a dedicated CRDs-only chart
-# The cert-manager chart with only CRDs enabled
+# CRDs only — no controller, no values to set.
+defaultValues: {}
