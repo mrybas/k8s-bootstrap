@@ -23,6 +23,28 @@ defaultValues:
   letsencrypt:
     enabled: true
     email: ""
+    # ACME challenge solver:
+    #   http01           — creates an Ingress for the challenge; needs a real
+    #                      Ingress controller (set ingressClassName). Does NOT
+    #                      work with Istio (no Ingress controller).
+    #   dns01-cloudflare — DNS TXT challenge via Cloudflare; ingress-agnostic
+    #                      (works with Istio, wildcard certs, private hosts).
+    #                      Requires a Cloudflare API token Secret.
+    solver: http01
+    http01:
+      # Ingress class for the http01 solver (only used when solver=http01).
+      ingressClassName: nginx
+    cloudflare:
+      # The cert-manager controller reads this Secret from its OWN namespace
+      # (cluster-resource-namespace = o0-cert-manager), NOT the issuer's.
+      # Create it out-of-band, e.g.:
+      #   kubectl -n o0-cert-manager create secret generic cloudflare-api-token \
+      #     --from-literal=api-token=<CF_TOKEN>
+      # (later: ship it as a SOPS-encrypted Secret manifest once Flux
+      # decryption is wired — issuer reference stays the same.)
+      apiTokenSecretRef:
+        name: cloudflare-api-token
+        key: api-token
     staging:
       enabled: true
     production:
@@ -46,6 +68,37 @@ jsonSchema:
           title: Email Address
           description: Email for Let's Encrypt notifications (required)
           format: email
+        solver:
+          type: string
+          title: ACME Solver
+          description: "http01 needs an Ingress controller; dns01-cloudflare is ingress-agnostic (use with Istio / wildcard / private hosts)"
+          enum: [http01, dns01-cloudflare]
+          default: http01
+        http01:
+          type: object
+          title: HTTP-01
+          properties:
+            ingressClassName:
+              type: string
+              title: Ingress Class
+              description: Ingress class for the http01 challenge (only when solver=http01)
+              default: nginx
+        cloudflare:
+          type: object
+          title: DNS-01 Cloudflare
+          properties:
+            apiTokenSecretRef:
+              type: object
+              description: "Secret in o0-cert-manager holding the Cloudflare API token (create out-of-band)"
+              properties:
+                name:
+                  type: string
+                  title: Token Secret Name
+                  default: cloudflare-api-token
+                key:
+                  type: string
+                  title: Token Secret Key
+                  default: api-token
         staging:
           type: object
           properties:
@@ -104,9 +157,17 @@ templates:
         privateKeySecretRef:
           name: letsencrypt-staging-account-key
         solvers:
+        {{- if eq .Values.letsencrypt.solver "dns01-cloudflare" }}
+          - dns01:
+              cloudflare:
+                apiTokenSecretRef:
+                  name: {{ .Values.letsencrypt.cloudflare.apiTokenSecretRef.name | quote }}
+                  key: {{ .Values.letsencrypt.cloudflare.apiTokenSecretRef.key | quote }}
+        {{- else }}
           - http01:
               ingress:
-                class: nginx
+                class: {{ .Values.letsencrypt.http01.ingressClassName | default "nginx" | quote }}
+        {{- end }}
     {{- end }}
     
     {{- if .Values.letsencrypt.production.enabled }}
@@ -122,9 +183,17 @@ templates:
         privateKeySecretRef:
           name: letsencrypt-production-account-key
         solvers:
+        {{- if eq .Values.letsencrypt.solver "dns01-cloudflare" }}
+          - dns01:
+              cloudflare:
+                apiTokenSecretRef:
+                  name: {{ .Values.letsencrypt.cloudflare.apiTokenSecretRef.name | quote }}
+                  key: {{ .Values.letsencrypt.cloudflare.apiTokenSecretRef.key | quote }}
+        {{- else }}
           - http01:
               ingress:
-                class: nginx
+                class: {{ .Values.letsencrypt.http01.ingressClassName | default "nginx" | quote }}
+        {{- end }}
     {{- end }}
     {{- end }}
   NOTES.txt: |
@@ -142,7 +211,15 @@ templates:
       - letsencrypt-production (for production)
     {{- end }}
     {{- end }}
-    
+    {{- if and .Values.letsencrypt.enabled (eq .Values.letsencrypt.solver "dns01-cloudflare") }}
+
+    DNS-01 (Cloudflare) is selected. Create the API token Secret in the
+    cert-manager controller namespace (NOT the issuer's) before requesting
+    certs:
+      kubectl -n {{ .Release.Namespace }} create secret generic {{ .Values.letsencrypt.cloudflare.apiTokenSecretRef.name }} \
+        --from-literal={{ .Values.letsencrypt.cloudflare.apiTokenSecretRef.key }}=<CLOUDFLARE_API_TOKEN>
+    {{- end }}
+
     Usage in Ingress:
       annotations:
         cert-manager.io/cluster-issuer: "letsencrypt-production"
