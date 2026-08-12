@@ -24,8 +24,22 @@ timeout: 5m
 dependsOn:
   - kamaji
   - cnpg-cluster
+  # Issuer/Certificate for the DataStore client keypair.
+  - cert-manager
 
 defaultValues:
+  # Mutual TLS to PostgreSQL. Kept on because it is verified working here and
+  # is better posture than CA-only; NOT a hard requirement of the Kamaji edge
+  # line, whose DataStore schema marks tlsConfig.clientCertificate optional
+  # (only certificateAuthority is required). See the note above the templates
+  # before turning it off.
+  clientCertificate:
+    enabled: true
+    secretName: kamaji-datastore-client
+    # Secret in THIS namespace holding the CNPG CA (cert + key) that
+    # cert-manager signs with; the copy is made by the job below because
+    # cert-manager Issuers can only read secrets from their own namespace.
+    caSecretName: kamaji-postgres-ca-copy
   name: default
   driver: PostgreSQL
   postgres:
@@ -80,6 +94,261 @@ uiSchema:
     ui:collapsed: true
 
 templates:
+  # Client-certificate auth to PostgreSQL, minted from the CNPG CA.
+  #
+  # History worth keeping: the 2024 semver charts (0.16.1 / 1.0.0) ship a
+  # DataStore webhook that dereferences spec.tlsConfig.clientCertificate
+  # unconditionally, so a CA-only DataStore makes it panic and every apply
+  # fails with 'received invalid webhook response ... got ""'. That is a
+  # property of the stale line, not of Kamaji in general — the edge channel
+  # this platform now tracks declares clientCertificate optional
+  # (`omitempty`, absent from the CRD's required list), and CA-only DataStores
+  # are admitted there.
+  #
+  # It stays enabled by default anyway: mutual TLS to the datastore is the
+  # better default, and CNPG publishes its CA (cert + key) in <cluster>-ca so
+  # cert-manager can mint the keypair with no manual
+  # `kubectl cnpg certificate` step. Set clientCertificate.enabled=false for
+  # a CA-only DataStore.
+  ca-copy.yaml: |
+    {{- if (.Values.clientCertificate).enabled }}
+    # cert-manager Issuers only read Secrets from their own namespace, and the
+    # CNPG CA lives with the database. This pre-install hook copies it across
+    # with the narrowest possible RBAC: read exactly one Secret in the CNPG
+    # namespace, write exactly one here.
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: {{ .Release.Name }}-ca-copy
+      namespace: {{ .Release.Namespace }}
+      annotations:
+        "helm.sh/hook": pre-install,pre-upgrade
+        "helm.sh/hook-weight": "-10"
+        "helm.sh/hook-delete-policy": before-hook-creation
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: {{ .Release.Name }}-ca-read
+      namespace: {{ .Values.postgres.namespace }}
+      annotations:
+        "helm.sh/hook": pre-install,pre-upgrade
+        "helm.sh/hook-weight": "-10"
+        "helm.sh/hook-delete-policy": before-hook-creation
+    rules:
+      - apiGroups: [""]
+        resources: ["secrets"]
+        resourceNames: ["{{ .Values.postgres.clusterName }}-ca"]
+        verbs: ["get"]
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: {{ .Release.Name }}-ca-read
+      namespace: {{ .Values.postgres.namespace }}
+      annotations:
+        "helm.sh/hook": pre-install,pre-upgrade
+        "helm.sh/hook-weight": "-10"
+        "helm.sh/hook-delete-policy": before-hook-creation
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: {{ .Release.Name }}-ca-read
+    subjects:
+      - kind: ServiceAccount
+        name: {{ .Release.Name }}-ca-copy
+        namespace: {{ .Release.Namespace }}
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: {{ .Release.Name }}-ca-write
+      namespace: {{ .Release.Namespace }}
+      annotations:
+        "helm.sh/hook": pre-install,pre-upgrade
+        "helm.sh/hook-weight": "-10"
+        "helm.sh/hook-delete-policy": before-hook-creation
+    rules:
+      - apiGroups: [""]
+        resources: ["secrets"]
+        verbs: ["get", "create", "update", "patch"]
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: {{ .Release.Name }}-ca-write
+      namespace: {{ .Release.Namespace }}
+      annotations:
+        "helm.sh/hook": pre-install,pre-upgrade
+        "helm.sh/hook-weight": "-10"
+        "helm.sh/hook-delete-policy": before-hook-creation
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: {{ .Release.Name }}-ca-write
+    subjects:
+      - kind: ServiceAccount
+        name: {{ .Release.Name }}-ca-copy
+        namespace: {{ .Release.Namespace }}
+    ---
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: {{ .Release.Name }}-ca-copy
+      namespace: {{ .Release.Namespace }}
+      annotations:
+        "helm.sh/hook": pre-install,pre-upgrade
+        "helm.sh/hook-weight": "-5"
+        "helm.sh/hook-delete-policy": before-hook-creation
+    spec:
+      backoffLimit: 3
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          serviceAccountName: {{ .Release.Name }}-ca-copy
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: copy
+              image: {{ (.Values.image).repository | default "mirror.gcr.io/alpine/k8s" }}:{{ (.Values.image).tag | default "1.34.1" }}
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: {cpu: 50m, memory: 64Mi}
+                limits: {memory: 128Mi}
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  SRC_NS={{ .Values.postgres.namespace }}
+                  SRC={{ .Values.postgres.clusterName }}-ca
+                  DST_NS={{ .Release.Namespace }}
+                  DST={{ .Values.clientCertificate.caSecretName }}
+
+                  i=0
+                  while [ "$i" -lt 60 ]; do
+                    kubectl -n "$SRC_NS" get secret "$SRC" >/dev/null 2>&1 && break
+                    echo "waiting for $SRC_NS/$SRC"
+                    i=$((i+1)); sleep 5
+                  done
+
+                  CRT=$(kubectl -n "$SRC_NS" get secret "$SRC" -o jsonpath='{.data.ca\.crt}')
+                  KEY=$(kubectl -n "$SRC_NS" get secret "$SRC" -o jsonpath='{.data.ca\.key}')
+                  if [ -z "$CRT" ] || [ -z "$KEY" ]; then
+                    echo "ERROR: $SRC_NS/$SRC has no ca.crt/ca.key — cert-manager cannot sign a client cert" >&2
+                    exit 1
+                  fi
+
+                  # cert-manager's CA issuer expects a kubernetes.io/tls secret.
+                  cat <<EOF | kubectl apply -f - >/dev/null
+                  apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: $DST
+                    namespace: $DST_NS
+                  type: kubernetes.io/tls
+                  data:
+                    tls.crt: $CRT
+                    tls.key: $KEY
+                  EOF
+                  echo "copied $SRC_NS/$SRC -> $DST_NS/$DST"
+    ---
+    # The DataStore webhook rejects a clientCertificate whose Secret does not
+    # exist yet, so block until cert-manager has issued it. Helm waits for hook
+    # Jobs, which turns the race into a deterministic ordering.
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: {{ .Release.Name }}-await-client-cert
+      namespace: {{ .Release.Namespace }}
+      annotations:
+        "helm.sh/hook": pre-install,pre-upgrade
+        "helm.sh/hook-weight": "-1"
+        "helm.sh/hook-delete-policy": before-hook-creation
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        spec:
+          serviceAccountName: {{ .Release.Name }}-ca-copy
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: wait
+              image: {{ (.Values.image).repository | default "mirror.gcr.io/alpine/k8s" }}:{{ (.Values.image).tag | default "1.34.1" }}
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: {cpu: 50m, memory: 64Mi}
+                limits: {memory: 128Mi}
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  NS={{ .Release.Namespace }}
+                  SEC={{ (.Values.clientCertificate).secretName | default "kamaji-datastore-client" }}
+                  i=0
+                  while [ "$i" -lt 60 ]; do
+                    if kubectl -n "$NS" get secret "$SEC" >/dev/null 2>&1; then
+                      echo "client certificate $NS/$SEC issued"
+                      exit 0
+                    fi
+                    echo "waiting for cert-manager to issue $NS/$SEC"
+                    i=$((i+1)); sleep 5
+                  done
+                  echo "ERROR: $NS/$SEC was never issued" >&2
+                  kubectl -n "$NS" get certificate,certificaterequest >&2 || true
+                  exit 1
+    {{- end }}
+
+  client-cert.yaml: |
+    {{- if (.Values.clientCertificate).enabled }}
+    apiVersion: cert-manager.io/v1
+    kind: Issuer
+    metadata:
+      name: {{ .Values.postgres.clusterName }}-ca-issuer
+      namespace: {{ .Release.Namespace }}
+      annotations:
+        "helm.sh/hook": pre-install,pre-upgrade
+        "helm.sh/hook-weight": "-3"
+    spec:
+      ca:
+        secretName: {{ (.Values.clientCertificate).caSecretName | default (printf "%s-ca-copy" .Values.postgres.clusterName) }}
+    ---
+    apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      name: {{ .Values.postgres.clusterName }}-kamaji-client
+      namespace: {{ .Release.Namespace }}
+      annotations:
+        "helm.sh/hook": pre-install,pre-upgrade
+        "helm.sh/hook-weight": "-3"
+    spec:
+      secretName: {{ (.Values.clientCertificate).secretName | default "kamaji-datastore-client" }}
+      commonName: {{ .Values.postgres.username }}
+      usages:
+        - client auth
+      issuerRef:
+        name: {{ .Values.postgres.clusterName }}-ca-issuer
+        kind: Issuer
+    {{- end }}
+
   datastore.yaml: |
     apiVersion: kamaji.clastix.io/v1alpha1
     kind: DataStore
@@ -104,3 +373,16 @@ templates:
               name: {{ .Values.postgres.clusterName }}-ca
               namespace: {{ .Values.postgres.namespace }}
               keyPath: ca.crt
+        {{- if (.Values.clientCertificate).enabled }}
+        clientCertificate:
+          certificate:
+            secretReference:
+              name: {{ (.Values.clientCertificate).secretName | default "kamaji-datastore-client" }}
+              namespace: {{ .Release.Namespace }}
+              keyPath: tls.crt
+          privateKey:
+            secretReference:
+              name: {{ (.Values.clientCertificate).secretName | default "kamaji-datastore-client" }}
+              namespace: {{ .Release.Namespace }}
+              keyPath: tls.key
+        {{- end }}

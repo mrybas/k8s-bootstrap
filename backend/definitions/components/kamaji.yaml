@@ -24,6 +24,21 @@ timeout: 5m
 upstream:
   repository: https://clastix.github.io/charts
   chartName: kamaji
+  # Kamaji ships two chart lines from the same repo and picking the wrong one
+  # is the trap here:
+  #
+  #   0.16.1 / 1.0.0 ...  the old semver line. Last published 2024-06; 1.0.0's
+  #                       controller template hardcodes `command: [/kamaji]`.
+  #   0.0.0+latest ...    the edge line, republished on every upstream push
+  #                       (still moving — re-fetched 2026-08-11). No `command:`,
+  #                       so the image's own entrypoint is used.
+  #
+  # The date-based images (26.8.3-edge and friends) are the current releases,
+  # and they do NOT have a /kamaji binary at the path the 1.0.0 chart expects —
+  # pinning one under the semver chart CrashLoops with
+  # 'exec: "/kamaji": stat /kamaji: no such file or directory'. That crash is
+  # what makes the semver line look like the safe choice; it isn't, it is two
+  # years stale. Use the edge chart and pin the image tag below.
   version: "0.0.0+latest"
 
 # Kamaji requires cert-manager for webhook TLS
@@ -36,8 +51,12 @@ dependsOn:
   - gateway-api-experimental
 
 defaultValues:
+  # The edge chart defaults image.tag to its appVersion, which is the literal
+  # string "latest" — a moving tag, so every pod restart could land on a
+  # different build. Pin a dated edge tag instead; this only works because the
+  # edge chart sets no `command:` (see the version comment above).
   image:
-    tag: 26.5.5-edge
+    tag: "26.8.3-edge"
   # Kamaji manager memory scales with the number of TenantControlPlanes
   # (per-tenant informer caches). The upstream default 100Mi OOMKills at
   # ~4 tenants; 512Mi comfortably holds dozens. Bump further (or make this
@@ -49,17 +68,21 @@ defaultValues:
       memory: 128Mi
     limits:
       memory: 512Mi
-  # Disable built-in etcd - we use PostgreSQL via kine
-  etcd:
-    deploy: false
-  # Prevent kamaji-etcd subchart from creating default etcd DataStore CR
-  # (our kamaji-datastore component creates PostgreSQL DataStore instead)
+  # Disable the built-in etcd — this platform stores tenant control-plane
+  # state in PostgreSQL via kine (see the kamaji-datastore component).
+  #
+  # The gate is the SUBCHART condition `kamaji-etcd.deploy`, declared in
+  # Chart.yaml. A top-level `etcd.deploy: false` (which the older semver
+  # chart honoured) is silently ignored by the edge chart: Helm accepts the
+  # unknown key, the condition stays true, and the release quietly grows a
+  # kamaji-etcd StatefulSet, four Certificates and a setup Job alongside the
+  # PostgreSQL DataStore that is actually in use.
   kamaji-etcd:
+    deploy: false
+    # Also stop the subchart creating its own etcd-backed `default` DataStore,
+    # which would collide with the PostgreSQL one by name.
     datastore:
       enabled: false
-  # CRDs installed separately via kamaji-crds component
-  crds:
-    install: false
 
 jsonSchema:
   type: object

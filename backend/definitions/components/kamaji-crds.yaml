@@ -1,6 +1,20 @@
 # Kamaji CRDs - Custom Resource Definitions for Kamaji
-# Installs DataStore and TenantControlPlane CRDs before the operator
-# Uses custom chart with CRDs from operator source (includes status fields, no webhooks)
+#
+# Tracks the same upstream chart line as the `kamaji` component
+# (0.0.0+latest, the edge channel — see that file for why the 2024 semver
+# line is the wrong choice). CRDs and controller must move together: the
+# edge controller reconciles fields the older hand-vendored CRDs simply do
+# not have, and a vendored copy silently drifts every time upstream adds a
+# field. Both charts are published from the same repo and the same commit,
+# so pinning both to the edge channel keeps them in step.
+#
+# `kamajiNamespace` / `kamajiCertificateName` are only used to build the
+# cert-manager `inject-ca-from` annotation, and they must match the
+# namespace and Certificate the `kamaji` component actually creates —
+# otherwise webhook CA injection points at a Certificate that does not
+# exist. This platform installs Kamaji into `o0-kamaji`, not the upstream
+# default `kamaji-system`.
+#
 # Docs: https://kamaji.clastix.io/
 
 id: kamaji-crds
@@ -16,19 +30,41 @@ autoInclude:
   when: [kamaji]
 docsUrl: https://kamaji.clastix.io/
 
-chartType: custom
+chartType: upstream
 namespace: o0-crds
 releaseName: kamaji-crds
 createNamespace: false
 timeout: 5m
 
+upstream:
+  repository: https://clastix.github.io/charts
+  chartName: kamaji-crds
+  version: "0.0.0+latest"
+  appVersion: "latest"
+
 dependsOn:
   - namespaces
 
-defaultValues: {}
+defaultValues:
+  kamajiNamespace: o0-kamaji
+  kamajiService: kamaji-webhook-service
+  kamajiCertificateName: kamaji-serving-cert
 
 jsonSchema:
   type: object
-  properties: {}
+  properties:
+    kamajiNamespace:
+      type: string
+      title: Kamaji Namespace
+      description: Namespace holding the Kamaji webhook Certificate (must match the kamaji component)
+      default: o0-kamaji
+    kamajiService:
+      type: string
+      title: Kamaji Webhook Service
+      default: kamaji-webhook-service
+    kamajiCertificateName:
+      type: string
+      title: Webhook Certificate Name
+      default: kamaji-serving-cert
 
 uiSchema: {}
