@@ -43,7 +43,10 @@ COMPONENT_SCHEMA = {
         "suggestsComponents": {"type": "array", "items": {"type": "string"}},
         "chartType": {
             "type": "string",
-            "enum": ["upstream", "custom", "meta"]
+            # "manifest" = the component vendors upstream release YAML under
+            # definitions/charts/<id>/ instead of pulling a Helm chart; see
+            # app/generator/manifest_chart_generator.py.
+            "enum": ["upstream", "custom", "manifest", "meta"]
         },
         "multiInstance": {"type": "boolean"},
         "requiresOperator": {"type": "string"},
@@ -197,16 +200,25 @@ class TestDefinitionReferences:
                     f"'{def_id}' requires non-existent CRD component '{crd}'"
     
     def test_all_instance_of_references_exist(self):
-        """Test that all instanceOf references exist."""
+        """Test that all instanceOf references exist and lead to an operator.
+
+        `instanceOf` names the component that must be installed first, not
+        necessarily the operator itself — the chain can be more than two deep
+        (piraeus-operator -> linstor-cluster -> linstor-storage-pool), and
+        ComponentService only checks that the target is in the selection. So
+        require the target to be an operator OR itself an instance, which
+        still catches a reference to some unrelated component.
+        """
         for def_id, info in ALL_DEFINITIONS.items():
             definition = info["data"]
             if "instanceOf" in definition:
-                operator = definition["instanceOf"]
-                assert operator in ALL_DEFINITIONS, \
-                    f"'{def_id}' instanceOf non-existent operator '{operator}'"
-                # Verify the referenced component is actually an operator
-                assert ALL_DEFINITIONS[operator]["data"].get("isOperator"), \
-                    f"'{def_id}' references '{operator}' which is not an operator"
+                target = definition["instanceOf"]
+                assert target in ALL_DEFINITIONS, \
+                    f"'{def_id}' instanceOf non-existent component '{target}'"
+                target_def = ALL_DEFINITIONS[target]["data"]
+                assert target_def.get("isOperator") or target_def.get("isInstance"), \
+                    f"'{def_id}' references '{target}', which is neither an " \
+                    f"operator nor an instance of one"
     
     def test_all_suggested_instances_exist(self):
         """Test that all suggestsInstances references exist."""
@@ -252,18 +264,22 @@ class TestDefinitionReferences:
 class TestNamespaceStrategy:
     """Test namespace strategy follows project conventions."""
     
-    def test_crd_charts_use_cluster_crds_namespace(self):
-        """Test that CRD charts use cluster-crds namespace."""
+    def test_crd_charts_use_shared_crds_namespace(self):
+        """Test that CRD charts land in the shared CRD namespace.
+
+        `o0-crds` — repo_generator creates it for any bundle that has CRD
+        charts, and every *-crds component targets it.
+        """
         crd_components = [
             def_id for def_id, info in ALL_DEFINITIONS.items()
             if def_id.endswith("-crds")
         ]
-        
+
         for def_id in crd_components:
             definition = ALL_DEFINITIONS[def_id]["data"]
             ns = definition.get("namespace")
-            assert ns == "cluster-crds", \
-                f"CRD chart '{def_id}' should use namespace 'cluster-crds', got '{ns}'"
+            assert ns == "o0-crds", \
+                f"CRD chart '{def_id}' should use namespace 'o0-crds', got '{ns}'"
     
     def test_flux_components_use_flux_system_namespace(self):
         """Test that flux-operator and flux-instance use flux-system namespace."""
@@ -277,10 +293,15 @@ class TestNamespaceStrategy:
                     f"Flux component '{def_id}' should use namespace 'flux-system', got '{ns}'"
     
     def test_regular_components_have_dedicated_namespaces(self):
-        """Test that regular components have their own dedicated namespaces."""
+        """Test that regular components have their own dedicated namespaces.
+
+        CoreDNS is deliberately absent: it replaces the cluster's own DNS
+        deployment, and every kubelet is configured against the Service in
+        kube-system, so it cannot be relocated.
+        """
         # Components that should NOT use kube-system
         should_have_own_namespace = [
-            "metrics-server", "vertical-pod-autoscaler", "coredns", "cluster-autoscaler"
+            "metrics-server", "vertical-pod-autoscaler", "cluster-autoscaler"
         ]
         
         for def_id in should_have_own_namespace:
