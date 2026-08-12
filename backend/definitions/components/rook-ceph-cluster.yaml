@@ -275,6 +275,10 @@ jsonSchema:
           spec:
             type: object
             properties:
+              failureDomain:
+                type: string
+                title: Failure Domain
+                default: host
               replicated:
                 type: object
                 properties:
@@ -282,6 +286,65 @@ jsonSchema:
                     type: integer
                     title: Replication Size
                     default: 2
+              # Erasure coding is a per-deployment choice, so it has to be
+              # expressible here rather than hand-written past the schema.
+              # RBD cannot live on EC alone: the pool below holds only the data
+              # extents, while metadata stays on a replicated pool referenced
+              # from the StorageClass as `pool` (with this one as `dataPool`).
+              # `allow_ec_overwrites` is mandatory for RBD on EC.
+              erasureCoded:
+                type: object
+                title: Erasure Coding
+                description: Mutually exclusive with `replicated`. dataChunks+codingChunks must not exceed the number of failure domains.
+                properties:
+                  dataChunks:
+                    type: integer
+                    title: Data Chunks
+                    default: 2
+                  codingChunks:
+                    type: integer
+                    title: Coding Chunks
+                    default: 1
+              parameters:
+                type: object
+                title: Pool Parameters
+                description: 'Raw Ceph pool parameters, e.g. {"allow_ec_overwrites": "true"}'
+                additionalProperties:
+                  type: string
+          # Without this an erasure-coded pool is unusable from the form: RBD on
+          # EC needs the StorageClass to point `pool` at a replicated pool for
+          # metadata and `dataPool` at the EC one.
+          storageClass:
+            type: object
+            title: StorageClass
+            properties:
+              enabled:
+                type: boolean
+                default: true
+              name:
+                type: string
+                title: StorageClass Name
+              isDefault:
+                type: boolean
+                title: Default StorageClass
+                default: false
+              reclaimPolicy:
+                type: string
+                enum: [Delete, Retain]
+                default: Delete
+              allowVolumeExpansion:
+                type: boolean
+                default: true
+              volumeBindingMode:
+                type: string
+                enum: [Immediate, WaitForFirstConsumer]
+                default: Immediate
+              parameters:
+                type: object
+                title: StorageClass Parameters
+                description: 'For an EC tier set pool=<replicated pool> and dataPool=<EC pool>'
+                additionalProperties:
+                  type: string
     cephFileSystems:
       type: array
       title: File Systems
