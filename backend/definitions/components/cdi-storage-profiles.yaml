@@ -203,6 +203,19 @@ defaultValues:
         - accessModes: ["ReadWriteOnce"]
           volumeMode: Filesystem
       cloneStrategy: csi-clone
+    # Erasure-coded pool for golden images. Needs the same treatment as every
+    # other Rook StorageClass: CDI cannot auto-profile the namespaced
+    # provisioner, so imports stall on ErrClaimNotValid without this.
+    - storageClass: ceph-block-ec
+      required: false
+      claimPropertySets:
+        - accessModes: ["ReadWriteMany"]
+          volumeMode: Block
+        - accessModes: ["ReadWriteOnce"]
+          volumeMode: Block
+        - accessModes: ["ReadWriteOnce"]
+          volumeMode: Filesystem
+      cloneStrategy: csi-clone
     - storageClass: ceph-filesystem
       required: false
       claimPropertySets:
