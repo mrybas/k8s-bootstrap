@@ -1,46 +1,39 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  labels:
-    kubevirt.io: ''
-    pod-security.kubernetes.io/enforce: privileged
-  name: kubevirt
 ---
 apiVersion: scheduling.k8s.io/v1
-description: This priority class should be used for core kubevirt components only.
-globalDefault: false
 kind: PriorityClass
 metadata:
   name: kubevirt-cluster-critical
 value: 1000000000
+globalDefault: false
+description: "This priority class should be used for core kubevirt components only."
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  labels:
-    operator.kubevirt.io: ''
-    rbac.authorization.k8s.io/aggregate-to-admin: 'true'
   name: kubevirt.io:operator
+  labels:
+    operator.kubevirt.io: ""
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
 rules:
-- apiGroups:
-  - kubevirt.io
-  resources:
-  - kubevirts
-  verbs:
-  - get
-  - delete
-  - create
-  - update
-  - patch
-  - list
-  - watch
-  - deletecollection
+  - apiGroups:
+      - kubevirt.io
+    resources:
+      - kubevirts
+    verbs:
+      - get
+      - delete
+      - create
+      - update
+      - patch
+      - list
+      - watch
+      - deletecollection
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   labels:
-    kubevirt.io: ''
+    kubevirt.io: ""
   name: kubevirt-operator
   namespace: o0-kubevirt
 ---
@@ -48,25 +41,30 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   labels:
-    kubevirt.io: ''
+    kubevirt.io: ""
   name: kubevirt-operator
   namespace: o0-kubevirt
 rules:
 - apiGroups:
-  - ''
+  - ""
   resourceNames:
   - kubevirt-ca
   - kubevirt-export-ca
+  - kubevirt-backup-ca
   - kubevirt-virt-handler-certs
   - kubevirt-virt-handler-server-certs
   - kubevirt-virt-handler-migration-client-certs
   - kubevirt-virt-handler-vsock-client-certs
+  - kubevirt-virt-handler-monitoring-client-certs
   - kubevirt-operator-certs
   - kubevirt-virt-api-certs
   - kubevirt-controller-certs
   - kubevirt-exportproxy-certs
   - kubevirt-synchronization-controller-certs
   - kubevirt-synchronization-controller-server-certs
+  - kubevirt-virt-template-api-certs
+  - kubevirt-virt-template-webhook-certs
+  - kubevirt-virt-template-controller-metrics-certs
   resources:
   - secrets
   verbs:
@@ -77,7 +75,7 @@ rules:
   - patch
   - delete
 - apiGroups:
-  - ''
+  - ""
   resources:
   - configmaps
   verbs:
@@ -117,7 +115,7 @@ rules:
   - create
   - patch
 - apiGroups:
-  - ''
+  - ""
   resources:
   - configmaps
   verbs:
@@ -133,7 +131,7 @@ rules:
   - get
   - watch
 - apiGroups:
-  - ''
+  - ""
   resources:
   - secrets
   verbs:
@@ -161,7 +159,7 @@ rules:
   - create
   - patch
 - apiGroups:
-  - ''
+  - ""
   resources:
   - configmaps
   verbs:
@@ -169,7 +167,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - ''
+  - ""
   resourceNames:
   - kubevirt-export-ca
   resources:
@@ -179,7 +177,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - ''
+  - ""
   resourceNames:
   - kubevirt-ca
   resources:
@@ -205,7 +203,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   labels:
-    kubevirt.io: ''
+    kubevirt.io: ""
   name: kubevirt-operator-rolebinding
   namespace: o0-kubevirt
 roleRef:
@@ -221,7 +219,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    kubevirt.io: ''
+    kubevirt.io: ""
   name: kubevirt-operator
 rules:
 - apiGroups:
@@ -235,7 +233,7 @@ rules:
   - patch
   - update
 - apiGroups:
-  - ''
+  - ""
   resources:
   - serviceaccounts
   - services
@@ -250,7 +248,7 @@ rules:
   - delete
   - patch
 - apiGroups:
-  - ''
+  - ""
   resources:
   - configmaps
   verbs:
@@ -388,7 +386,7 @@ rules:
   - update
   - patch
 - apiGroups:
-  - ''
+  - ""
   resources:
   - namespaces
   verbs:
@@ -397,7 +395,46 @@ rules:
   - watch
   - patch
 - apiGroups:
-  - ''
+  - template.kubevirt.io
+  resources:
+  - virtualmachinetemplates
+  - virtualmachinetemplaterequests
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - template.kubevirt.io
+  resources:
+  - virtualmachinetemplates/status
+  - virtualmachinetemplaterequests/status
+  verbs:
+  - get
+  - patch
+- apiGroups:
+  - template.kubevirt.io
+  resources:
+  - virtualmachinetemplates/finalizers
+  - virtualmachinetemplaterequests/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - template.kubevirt.io
+  resources:
+  - virtualmachinetemplaterequests/source
+  verbs:
+  - create
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get
+- apiGroups:
+  - ""
   resources:
   - pods
   verbs:
@@ -417,7 +454,7 @@ rules:
   - patch
   - update
 - apiGroups:
-  - ''
+  - ""
   resources:
   - persistentvolumeclaims
   verbs:
@@ -447,7 +484,7 @@ rules:
   - watch
   - list
 - apiGroups:
-  - ''
+  - ""
   resources:
   - configmaps
   verbs:
@@ -455,7 +492,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - ''
+  - ""
   resources:
   - limitranges
   verbs:
@@ -488,6 +525,22 @@ rules:
   - list
   - watch
 - apiGroups:
+  - backup.kubevirt.io
+  resources:
+  - virtualmachinebackups
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - backup.kubevirt.io
+  resources:
+  - virtualmachinebackuptrackers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - cdi.kubevirt.io
   resources:
   - datasources
@@ -497,7 +550,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - ''
+  - ""
   resources:
   - namespaces
   verbs:
@@ -532,13 +585,13 @@ rules:
   - list
   - get
 - apiGroups:
-  - ''
+  - ""
   resources:
   - nodes
   verbs:
   - get
 - apiGroups:
-  - ''
+  - ""
   resources:
   - namespaces
   verbs:
@@ -558,7 +611,7 @@ rules:
   - create
   - patch
 - apiGroups:
-  - ''
+  - ""
   resources:
   - pods
   - configmaps
@@ -573,7 +626,7 @@ rules:
   - create
   - patch
 - apiGroups:
-  - ''
+  - ""
   resources:
   - events
   verbs:
@@ -581,31 +634,31 @@ rules:
   - create
   - patch
 - apiGroups:
-  - ''
+  - ""
   resources:
   - secrets
   verbs:
   - create
 - apiGroups:
-  - ''
+  - ""
   resources:
   - pods/finalizers
   verbs:
   - update
 - apiGroups:
-  - ''
+  - ""
   resources:
   - pods/eviction
   verbs:
   - create
 - apiGroups:
-  - ''
+  - ""
   resources:
   - pods/status
   verbs:
   - patch
 - apiGroups:
-  - ''
+  - ""
   resources:
   - nodes
   verbs:
@@ -632,7 +685,7 @@ rules:
   - get
   - update
 - apiGroups:
-  - ''
+  - ""
   resources:
   - persistentvolumeclaims
   verbs:
@@ -677,6 +730,41 @@ rules:
   - delete
   - patch
 - apiGroups:
+  - backup.kubevirt.io
+  resources:
+  - virtualmachinebackups
+  - virtualmachinebackups/status
+  - virtualmachinebackups/finalizers
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - delete
+  - patch
+- apiGroups:
+  - backup.kubevirt.io
+  resources:
+  - virtualmachinebackuptrackers
+  - virtualmachinebackuptrackers/status
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - delete
+  - patch
+- apiGroups:
+  - template.kubevirt.io
+  resources:
+  - virtualmachinetemplates
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - pool.kubevirt.io
   resources:
   - virtualmachinepools
@@ -710,6 +798,8 @@ rules:
   - virtualmachines/stop
   - virtualmachineinstances/addvolume
   - virtualmachineinstances/removevolume
+  - virtualmachineinstances/backup
+  - virtualmachineinstances/redefine-checkpoint
   - virtualmachineinstances/freeze
   - virtualmachineinstances/unfreeze
   - virtualmachineinstances/reset
@@ -724,12 +814,6 @@ rules:
   - '*'
   verbs:
   - '*'
-- apiGroups:
-  - k8s.cni.cncf.io
-  resources:
-  - network-attachment-definitions
-  verbs:
-  - get
 - apiGroups:
   - apiextensions.k8s.io
   resources:
@@ -804,13 +888,13 @@ rules:
   - patch
   - delete
 - apiGroups:
-  - ''
+  - ""
   resources:
   - namespaces
   verbs:
   - get
 - apiGroups:
-  - ''
+  - ""
   resources:
   - resourcequotas
   verbs:
@@ -834,6 +918,12 @@ rules:
   - watch
   - get
 - apiGroups:
+  - k8s.cni.cncf.io
+  resources:
+  - network-attachment-definitions
+  verbs:
+  - get
+- apiGroups:
   - kubevirt.io
   resources:
   - virtualmachineinstances
@@ -842,7 +932,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - ''
+  - ""
   resources:
   - nodes
   verbs:
@@ -851,7 +941,7 @@ rules:
   - watch
   - get
 - apiGroups:
-  - ''
+  - ""
   resources:
   - configmaps
   verbs:
@@ -859,7 +949,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - ''
+  - ""
   resources:
   - events
   verbs:
@@ -885,6 +975,23 @@ rules:
   - migrations.kubevirt.io
   resources:
   - migrationpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - backup.kubevirt.io
+  resources:
+  - virtualmachinebackuptrackers
+  - virtualmachinebackuptrackers/status
+  verbs:
+  - list
+  - watch
+  - patch
+- apiGroups:
+  - plugin.kubevirt.io
+  resources:
+  - plugins
   verbs:
   - get
   - list
@@ -933,7 +1040,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - ''
+  - ""
   resources:
   - events
   verbs:
@@ -1061,6 +1168,33 @@ rules:
   - watch
   - deletecollection
 - apiGroups:
+  - backup.kubevirt.io
+  resources:
+  - virtualmachinebackups
+  - virtualmachinebackuptrackers
+  verbs:
+  - get
+  - delete
+  - create
+  - update
+  - patch
+  - list
+  - watch
+  - deletecollection
+- apiGroups:
+  - plugin.kubevirt.io
+  resources:
+  - plugins
+  verbs:
+  - get
+  - delete
+  - create
+  - update
+  - patch
+  - list
+  - watch
+  - deletecollection
+- apiGroups:
   - export.kubevirt.io
   resources:
   - virtualmachineexports
@@ -1128,7 +1262,6 @@ rules:
   resources:
   - virtualmachineinstances/console
   - virtualmachineinstances/vnc
-  - virtualmachineinstances/vnc/screenshot
   - virtualmachineinstances/portforward
   - virtualmachineinstances/guestosinfo
   - virtualmachineinstances/filesystemlist
@@ -1219,6 +1352,19 @@ rules:
   - list
   - watch
 - apiGroups:
+  - backup.kubevirt.io
+  resources:
+  - virtualmachinebackups
+  - virtualmachinebackuptrackers
+  verbs:
+  - get
+  - delete
+  - create
+  - update
+  - patch
+  - list
+  - watch
+- apiGroups:
   - export.kubevirt.io
   resources:
   - virtualmachineexports
@@ -1333,6 +1479,15 @@ rules:
   - list
   - watch
 - apiGroups:
+  - backup.kubevirt.io
+  resources:
+  - virtualmachinebackups
+  - virtualmachinebackuptrackers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - export.kubevirt.io
   resources:
   - virtualmachineexports
@@ -1371,6 +1526,14 @@ rules:
   - migrations.kubevirt.io
   resources:
   - migrationpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - plugin.kubevirt.io
+  resources:
+  - plugins
   verbs:
   - get
   - list
@@ -1420,7 +1583,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   labels:
-    kubevirt.io: ''
+    kubevirt.io: ""
   name: kubevirt-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -1452,8 +1615,8 @@ spec:
       labels:
         kubevirt.io: virt-operator
         name: virt-operator
-        np.kubevirt.io/allow-access-cluster-services: 'true'
-        prometheus.kubevirt.io: 'true'
+        np.kubevirt.io/allow-access-cluster-services: "true"
+        prometheus.kubevirt.io: "true"
       name: virt-operator
     spec:
       affinity:
@@ -1486,21 +1649,21 @@ spec:
       containers:
       - args:
         - --port
-        - '8443'
+        - "8443"
         - -v
-        - '2'
+        - "2"
         command:
         - virt-operator
         env:
         - name: VIRT_OPERATOR_IMAGE
-          value: quay.io/kubevirt/virt-operator:v1.7.0
+          value: quay.io/kubevirt/virt-operator:v1.9.0
         - name: WATCH_NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.annotations['olm.targetNamespaces']
         - name: KUBEVIRT_VERSION
-          value: v1.7.0
-        image: quay.io/kubevirt/virt-operator:v1.7.0
+          value: v1.9.0
+        image: quay.io/kubevirt/virt-operator:v1.9.0
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:

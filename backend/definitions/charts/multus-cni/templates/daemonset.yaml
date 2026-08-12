@@ -154,7 +154,7 @@ spec:
       serviceAccountName: multus
       containers:
         - name: kube-multus
-          image: "{{ .Values.image.repository | default "ghcr.io/k8snetworkplumbingwg/multus-cni" }}:{{ .Values.image.tag | default "v4.2.4-thick" }}"
+          image: "{{ .Values.image.repository | default "ghcr.io/k8snetworkplumbingwg/multus-cni" }}:{{ .Values.image.tag | default "v4.3.0-thick" }}"
           command: [ "/usr/src/multus-cni/bin/multus-daemon" ]
           resources:
             {{- toYaml (.Values.pod.resources | default (dict "requests" (dict "cpu" "100m" "memory" "128Mi") "limits" (dict "cpu" "200m" "memory" "256Mi"))) | nindent 12 }}
@@ -196,7 +196,7 @@ spec:
                   fieldPath: spec.nodeName
       initContainers:
         - name: install-multus-binary
-          image: "{{ .Values.image.repository | default "ghcr.io/k8snetworkplumbingwg/multus-cni" }}:{{ .Values.image.tag | default "v4.2.4-thick" }}"
+          image: "{{ .Values.image.repository | default "ghcr.io/k8snetworkplumbingwg/multus-cni" }}:{{ .Values.image.tag | default "v4.3.0-thick" }}"
           command:
             - "/usr/src/multus-cni/bin/install_multus"
             - "-d"

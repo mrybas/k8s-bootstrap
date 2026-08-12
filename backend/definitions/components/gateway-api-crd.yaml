@@ -21,8 +21,8 @@ namespace: gateway-system
 createNamespace: true
 timeout: 5m
 
-version: "1.5.1"
-appVersion: "v1.5.1"
+version: "1.6.1"
+appVersion: "v1.6.1"
 
 dependsOn: []
 

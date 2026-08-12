@@ -22,15 +22,15 @@ createNamespace: true
 podSecurityEnforce: privileged  # Required for data import pods
 timeout: 10m
 
-version: "1.64.0"
-appVersion: "v1.64.0"
+version: "1.66.0"
+appVersion: "v1.66.0"
 
 # Official manifest URLs
 manifests:
   - name: cdi-operator
-    url: https://github.com/kubevirt/containerized-data-importer/releases/download/v1.64.0/cdi-operator.yaml
+    url: https://github.com/kubevirt/containerized-data-importer/releases/download/v1.66.0/cdi-operator.yaml
   - name: cdi-cr
-    url: https://github.com/kubevirt/containerized-data-importer/releases/download/v1.64.0/cdi-cr.yaml
+    url: https://github.com/kubevirt/containerized-data-importer/releases/download/v1.66.0/cdi-cr.yaml
 
 dependsOn:
   - cdi-crds

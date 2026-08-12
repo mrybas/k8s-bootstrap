@@ -19,15 +19,15 @@ createNamespace: true
 podSecurityEnforce: privileged  # Required for virt-handler (hostNetwork, privileged)
 timeout: 10m
 
-version: "1.7.0"
-appVersion: "v1.7.0"
+version: "1.9.0"
+appVersion: "v1.9.0"
 
 # Official manifest URLs
 manifests:
   - name: kubevirt-operator
-    url: https://github.com/kubevirt/kubevirt/releases/download/v1.7.0/kubevirt-operator.yaml
+    url: https://github.com/kubevirt/kubevirt/releases/download/v1.9.0/kubevirt-operator.yaml
   - name: kubevirt-cr
-    url: https://github.com/kubevirt/kubevirt/releases/download/v1.7.0/kubevirt-cr.yaml
+    url: https://github.com/kubevirt/kubevirt/releases/download/v1.9.0/kubevirt-cr.yaml
 
 suggestsInstances:
   - kubevirt-cdi

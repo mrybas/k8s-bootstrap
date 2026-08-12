@@ -23,8 +23,8 @@ releaseName: kubevirt-crds
 createNamespace: false
 timeout: 5m
 
-version: "1.7.0"
-appVersion: "v1.7.0"
+version: "1.9.0"
+appVersion: "v1.9.0"
 
 # CRDs have no dependencies
 dependsOn: []

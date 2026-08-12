@@ -2,5 +2,5 @@ apiVersion: v2
 name: cdi-crds
 description: CDI (Containerized Data Importer) Custom Resource Definitions
 type: application
-version: 1.64.0
-appVersion: "v1.64.0"
+version: 1.66.0
+appVersion: "v1.66.0"

@@ -1,7 +1,7 @@
 apiVersion: v2
 name: gateway-api-crd
-version: 1.5.1
-appVersion: "v1.5.1"
+version: 1.6.1
+appVersion: "v1.6.1"
 description: |
   Kubernetes Gateway API standard channel CRDs.
 

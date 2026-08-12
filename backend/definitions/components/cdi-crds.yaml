@@ -23,8 +23,8 @@ releaseName: cdi-crds
 createNamespace: false
 timeout: 5m
 
-version: "1.64.0"
-appVersion: "v1.64.0"
+version: "1.66.0"
+appVersion: "v1.66.0"
 
 # CRDs have no dependencies
 dependsOn: []

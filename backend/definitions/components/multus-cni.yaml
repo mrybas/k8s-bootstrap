@@ -26,8 +26,8 @@ createNamespace: true
 podSecurityEnforce: privileged  # Required for CNI plugin install (hostPath, privileged)
 timeout: 5m
 
-version: "4.2.4"
-appVersion: "v4.2.4"
+version: "4.3.0"
+appVersion: "v4.3.0"
 
 # No dependencies - Multus works with any primary CNI
 
@@ -35,7 +35,7 @@ defaultValues:
   # Image settings — must match the templated daemonset.yaml refs.
   image:
     repository: ghcr.io/k8snetworkplumbingwg/multus-cni
-    tag: v4.2.4-thick
+    tag: v4.3.0-thick
 
   # Pod settings — 128Mi requests / 256Mi limit chosen after observing
   # the thick binary peaking past 50Mi during chart deploys + RBAC cache
@@ -64,7 +64,7 @@ jsonSchema:
           type: string
           title: Image Tag
           description: Use -thick suffix for thick plugin mode
-          default: "v4.2.4-thick"
+          default: "v4.3.0-thick"
     pod:
       type: object
       title: Pod Resources
