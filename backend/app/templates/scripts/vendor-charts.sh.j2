@@ -17,32 +17,38 @@ log() { echo -e "${BLUE}[INFO]${NC} $1"; }
 ok() { echo -e "${GREEN}[OK]${NC} $1"; }
 
 vendor_chart() {
-    local name="$1"
-    local version="$2"
-    local repo="$3"
-    local category="$4"
-    
-    # New path: charts/<category>/<chart-id>/charts/<upstream-name>/
-    local dest="${CHARTS_DIR}/${category}/${name}/charts"
-    
-    # Skip if already vendored with correct version
+    local chart_id="$1"
+    local name="$2"
+    local version="$3"
+    local repo="$4"
+    local category="$5"
+
+    # The wrapper chart lives at charts/<category>/<component-id>/ and declares
+    # `repository: file://charts/<upstream-name>`, so the upstream chart must be
+    # unpacked into the WRAPPER's charts/ dir — keyed by component id, not by
+    # upstream chart name. They differ whenever a component renames the chart
+    # (ingress-traefik -> traefik, rook-ceph-operator -> rook-ceph, ...), and
+    # vendoring by name left those wrappers holding only a VENDOR_ME.md stub
+    # while the real chart landed in a directory nothing references.
+    local dest="${CHARTS_DIR}/${category}/${chart_id}/charts"
+
+    # Skip if already vendored with correct version.
     if [[ -d "${dest}" ]]; then
-        # Find the actual chart directory (might have different name than wrapper)
-        local chart_dir=$(find "${dest}" -maxdepth 1 -type d -name "*.yaml" -exec dirname {} \; 2>/dev/null | head -1)
-        if [[ -z "$chart_dir" ]]; then
-            chart_dir=$(find "${dest}" -maxdepth 1 -type d ! -name "charts" 2>/dev/null | head -1)
-        fi
-        
-        if [[ -n "$chart_dir" ]] && [[ -f "${chart_dir}/Chart.yaml" ]]; then
-            local current_version=$(grep "^version:" "${chart_dir}/Chart.yaml" | awk '{print $2}' | tr -d '"')
-            if [[ "$current_version" == "$version" ]] || [[ "$current_version" == "v${version}" ]]; then
+        local chart_dir="${dest}/${name}"
+        # A placeholder carries VENDOR_ME.md and the *wrapper's* version, which
+        # matches $version for same-named charts — treat it as not vendored.
+        if [[ -f "${chart_dir}/Chart.yaml" ]] && [[ ! -f "${chart_dir}/VENDOR_ME.md" ]] \
+           && [[ -d "${chart_dir}/templates" || -d "${chart_dir}/crds" ]]; then
+            local current_version
+            current_version=$(grep "^version:" "${chart_dir}/Chart.yaml" | awk '{print $2}' | tr -d '"')
+            if [[ "${current_version#v}" == "${version#v}" ]]; then
                 ok "$name@$version already vendored"
                 return 0
             fi
         fi
     fi
-    
-    log "Vendoring $name@$version to ${category}/${name}..."
+
+    log "Vendoring $name@$version to ${category}/${chart_id}..."
     mkdir -p "$dest"
     rm -rf "${dest}"/* 2>/dev/null || true
     
@@ -77,7 +83,7 @@ vendor_chart() {
 }
 
 {% for chart in charts %}
-vendor_chart "{{ chart.name }}" "{{ chart.version }}" "{{ chart.repository }}" "{{ chart.category }}"
+vendor_chart "{{ chart.id }}" "{{ chart.name }}" "{{ chart.version }}" "{{ chart.repository }}" "{{ chart.category }}"
 {% endfor %}
 
 {% if manifest_entries %}
