@@ -1,0 +1,157 @@
+# Ceph CSI Drivers — the half of CSI that Rook no longer ships
+#
+# Rook v1.20 dropped the in-tree CSI deployment. What is left is split in two:
+#
+#   rook-ceph (operator chart)  -> ceph-csi-operator subchart: the controller
+#                                  and the Driver/OperatorConfig/CephConnection
+#                                  /ClientProfile CRDs — but NO driver instances
+#   rook-ceph-cluster           -> Rook creates CephConnection + ClientProfile
+#                                  for its cluster, and StorageClasses whose
+#                                  provisioner is <operatorNamespace>.rbd.csi.ceph.com
+#   THIS component              -> the Driver CRs plus the ServiceAccounts and
+#                                  RBAC their plugin pods run as
+#
+# Without it the CephCluster goes HEALTH_OK and the StorageClasses exist, but
+# nothing provisions: every PVC sits Pending on
+# "waiting for a volume to be created ... by the external provisioner", because
+# no csi provisioner/nodeplugin pod exists at all. Creating bare Driver CRs is
+# not enough either — the ceph-csi-operator then builds Deployments/DaemonSets
+# referencing ServiceAccounts that nothing created, and they fail with
+# "error looking up service account ...: serviceaccount not found".
+#
+# The driver NAME must match the StorageClass provisioner exactly. Rook derives
+# that from the operator namespace, so the defaults below assume the platform's
+# o0-rook-ceph namespace; set them from the request/UI if the operator lives
+# elsewhere. Everything else here (which drivers to enable, snapshot policy,
+# kubelet dir) is likewise a per-deployment parameter.
+#
+# cephConnections / clientProfiles are left empty on purpose: Rook already
+# creates those for its own cluster and duplicates would fight over the same
+# names.
+
+id: ceph-csi-drivers
+name: Ceph CSI Drivers
+description: RBD and CephFS CSI driver instances (Driver CRs + ServiceAccounts + RBAC) for the ceph-csi-operator
+category: storage
+categoryName: Storage
+categoryDescription: Storage, backups, and data management
+icon: "🔌"
+priority: 45
+docsUrl: https://github.com/ceph/ceph-csi-operator
+
+chartType: upstream
+namespace: o0-rook-ceph
+releaseName: ceph-csi-drivers
+createNamespace: false
+timeout: 10m
+
+upstream:
+  repository: https://ceph.github.io/ceph-csi-operator
+  chartName: ceph-csi-drivers
+  version: "1.0.4"
+  appVersion: "v1.0.4"
+
+dependsOn:
+  - rook-ceph-operator
+
+defaultValues:
+  # Owned by Rook — see header.
+  cephConnections: []
+  clientProfiles: []
+
+  operatorConfig:
+    name: ceph-csi-operator-config
+    create: true
+    driverSpecDefaults:
+      # The default is "none", which silently disables snapshot support even
+      # though rook-ceph-cluster ships VolumeSnapshotClasses.
+      snapshotPolicy: volumeSnapshot
+      nodePlugin:
+        # Talos uses the standard kubelet root.
+        kubeletDirPath: /var/lib/kubelet
+
+  drivers:
+    rbd:
+      name: o0-rook-ceph.rbd.csi.ceph.com
+      enabled: true
+    cephfs:
+      name: o0-rook-ceph.cephfs.csi.ceph.com
+      enabled: true
+    nfs:
+      name: o0-rook-ceph.nfs.csi.ceph.com
+      enabled: false
+    nvmeof:
+      name: o0-rook-ceph.nvmeof.csi.ceph.com
+      enabled: false
+
+jsonSchema:
+  type: object
+  properties:
+    drivers:
+      type: object
+      title: Drivers
+      properties:
+        rbd:
+          type: object
+          title: RBD (block)
+          properties:
+            name:
+              type: string
+              title: Driver Name
+              description: Must equal the StorageClass provisioner, i.e. <operatorNamespace>.rbd.csi.ceph.com
+              default: o0-rook-ceph.rbd.csi.ceph.com
+            enabled:
+              type: boolean
+              title: Enabled
+              default: true
+        cephfs:
+          type: object
+          title: CephFS (shared filesystem)
+          properties:
+            name:
+              type: string
+              title: Driver Name
+              default: o0-rook-ceph.cephfs.csi.ceph.com
+            enabled:
+              type: boolean
+              title: Enabled
+              default: true
+        nfs:
+          type: object
+          title: NFS
+          properties:
+            enabled:
+              type: boolean
+              title: Enabled
+              default: false
+        nvmeof:
+          type: object
+          title: NVMe-oF
+          properties:
+            enabled:
+              type: boolean
+              title: Enabled
+              default: false
+    operatorConfig:
+      type: object
+      title: Operator Config
+      properties:
+        create:
+          type: boolean
+          title: Create OperatorConfig
+          default: true
+        driverSpecDefaults:
+          type: object
+          properties:
+            snapshotPolicy:
+              type: string
+              title: Snapshot Policy
+              enum:
+                - none
+                - volumeSnapshot
+                - volumeGroupSnapshot
+              default: volumeSnapshot
+
+uiSchema:
+  operatorConfig:
+    ui:collapsed: true

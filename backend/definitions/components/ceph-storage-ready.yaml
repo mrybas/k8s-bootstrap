@@ -1,0 +1,235 @@
+# Ceph Storage Readiness Gate
+#
+# WHY THIS EXISTS
+# A HelmRelease reports Ready as soon as Helm finished applying the chart. For
+# rook-ceph-cluster that means "the CephCluster CR was created", NOT "Ceph is
+# usable" — mon election, mgr start and OSD provisioning take several more
+# minutes. The Flux category Kustomizations are chained (storage -> database ->
+# backup -> observability -> virtualization) with wait: true, so without a gate
+# the first PVC-consuming release (CNPG, MinIO, VictoriaMetrics, CDI) starts
+# while Ceph still has zero OSDs, its PVC sits Pending and the release times
+# out.
+#
+# This chart adds a Helm post-install/post-upgrade hook Job. Helm blocks on
+# hook Jobs, so the storage category only goes Ready once the Job confirms:
+#   - the CephCluster reports phase Ready and health HEALTH_OK / HEALTH_WARN
+#   - the expected number of OSDs are up and in
+#   - every required StorageClass exists
+# Everything downstream then starts against working storage.
+#
+# HEALTH_WARN is accepted deliberately: a 2-replica lab cluster idles in WARN
+# for benign reasons (single mon on a rebooting node, clock skew, pool has no
+# redundancy during backfill). Only HEALTH_ERR or a missing quorum blocks.
+
+id: ceph-storage-ready
+name: Ceph Storage Readiness Gate
+description: Blocks the storage stage until the Ceph cluster is actually serving I/O (OSDs up, StorageClasses present)
+category: storage
+categoryName: Storage
+categoryDescription: Storage, backups, and data management
+icon: "🚦"
+priority: 55
+docsUrl: https://rook.io/docs/rook/latest/Troubleshooting/ceph-common-issues/
+
+chartType: custom
+namespace: o0-rook-ceph
+releaseName: ceph-storage-ready
+createNamespace: false
+timeout: 25m
+
+dependsOn:
+  - rook-ceph-cluster
+
+templates:
+  rbac.yaml: |
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: {{ .Release.Name }}
+      namespace: {{ .Release.Namespace }}
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: {{ .Release.Name }}
+    rules:
+      - apiGroups: ["ceph.rook.io"]
+        resources: ["cephclusters"]
+        verbs: ["get", "list", "watch"]
+      # OSD readiness is counted from the rook-ceph-osd Deployments — without
+      # this the count silently reads 0 and the gate waits out its whole
+      # deadline before passing on the CephCluster phase alone.
+      - apiGroups: ["apps"]
+        resources: ["deployments"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: ["storage.k8s.io"]
+        resources: ["storageclasses"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: ["snapshot.storage.k8s.io"]
+        resources: ["volumesnapshotclasses"]
+        verbs: ["get", "list", "watch"]
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: {{ .Release.Name }}
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: {{ .Release.Name }}
+    subjects:
+      - kind: ServiceAccount
+        name: {{ .Release.Name }}
+        namespace: {{ .Release.Namespace }}
+
+  wait-job.yaml: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: {{ .Release.Name }}
+      namespace: {{ .Release.Namespace }}
+      annotations:
+        "helm.sh/hook": post-install,post-upgrade
+        "helm.sh/hook-weight": "10"
+        "helm.sh/hook-delete-policy": before-hook-creation
+    spec:
+      backoffLimit: 2
+      # Job deadline stays under the HelmRelease timeout so a genuine failure
+      # surfaces as a failed hook instead of a Flux-level timeout.
+      activeDeadlineSeconds: {{ .Values.timeoutSeconds | default 1200 }}
+      template:
+        metadata:
+          name: {{ .Release.Name }}
+        spec:
+          serviceAccountName: {{ .Release.Name }}
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: wait
+              image: {{ (.Values.image).repository | default "mirror.gcr.io/alpine/k8s" }}:{{ (.Values.image).tag | default "1.34.1" }}
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 128Mi
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  NS={{ .Release.Namespace }}
+                  MIN_OSDS={{ .Values.minOsds | default 6 }}
+                  DEADLINE=$(( $(date +%s) + {{ .Values.timeoutSeconds | default 1200 }} - 60 ))
+
+                  echo "waiting for a CephCluster in $NS to become Ready (min ${MIN_OSDS} OSDs)"
+                  while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+                    phase=$(kubectl -n "$NS" get cephcluster -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "")
+                    health=$(kubectl -n "$NS" get cephcluster -o jsonpath='{.items[0].status.ceph.health}' 2>/dev/null || echo "")
+                    up=$(kubectl -n "$NS" get cephcluster -o jsonpath='{.items[0].status.ceph.details.OSD_UP.message}' 2>/dev/null || echo "")
+                    osds=$(kubectl -n "$NS" get deploy -l app=rook-ceph-osd -o name 2>/dev/null | wc -l | tr -d ' ')
+                    ready_osds=$(kubectl -n "$NS" get deploy -l app=rook-ceph-osd \
+                      -o jsonpath='{range .items[*]}{.status.readyReplicas}{"\n"}{end}' 2>/dev/null \
+                      | grep -c '^1$' || true)
+
+                    echo "  phase=${phase:-<none>} health=${health:-<none>} osd_deployments=${osds} ready=${ready_osds} ${up}"
+
+                    if [ "$phase" = "Ready" ] && [ "${ready_osds:-0}" -ge "$MIN_OSDS" ] \
+                       && { [ "$health" = "HEALTH_OK" ] || [ "$health" = "HEALTH_WARN" ]; }; then
+                      break
+                    fi
+                    sleep 10
+                  done
+
+                  # Re-read after the loop: falling out on the deadline must fail
+                  # the hook, otherwise Helm would report success on a cluster
+                  # that is Ready but has, say, 1 OSD out of 6.
+                  phase=$(kubectl -n "$NS" get cephcluster -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "")
+                  ready_osds=$(kubectl -n "$NS" get deploy -l app=rook-ceph-osd \
+                    -o jsonpath='{range .items[*]}{.status.readyReplicas}{"\n"}{end}' 2>/dev/null \
+                    | grep -c '^1$' || true)
+                  if [ "$phase" != "Ready" ]; then
+                    echo "ERROR: CephCluster never reached phase Ready (last phase: ${phase:-<none>})" >&2
+                    kubectl -n "$NS" get cephcluster -o wide >&2 || true
+                    exit 1
+                  fi
+                  if [ "${ready_osds:-0}" -lt "$MIN_OSDS" ]; then
+                    echo "ERROR: only ${ready_osds} of ${MIN_OSDS} OSDs ready" >&2
+                    kubectl -n "$NS" get deploy -l app=rook-ceph-osd >&2 || true
+                    exit 1
+                  fi
+
+                  for sc in {{ .Values.requiredStorageClasses | default (list "ceph-block") | join " " }}; do
+                    if ! kubectl get storageclass "$sc" >/dev/null 2>&1; then
+                      echo "ERROR: StorageClass $sc missing" >&2
+                      kubectl get storageclass >&2 || true
+                      exit 1
+                    fi
+                    echo "  StorageClass $sc present"
+                  done
+
+                  echo "Ceph is ready — storage stage may proceed"
+
+defaultValues:
+  # alpine/k8s bundles kubectl AND a shell. registry.k8s.io/kubectl is
+  # distroless — it has no /bin/sh, so the wait loop below cannot run there.
+  # Pulled through mirror.gcr.io because the lab's egress IP hits Docker Hub's
+  # anonymous pull-rate limit during churn.
+  image:
+    repository: mirror.gcr.io/alpine/k8s
+    tag: "1.34.1"
+  # Deployment-specific: set it to (nodes x data disks) from the request/UI.
+  # The gate waits for OSDs to be *ready*, not merely created.
+  minOsds: 3
+  timeoutSeconds: 1200
+  requiredStorageClasses:
+    - ceph-block
+    - ceph-filesystem
+
+jsonSchema:
+  type: object
+  properties:
+    minOsds:
+      type: integer
+      title: Minimum Ready OSDs
+      description: Gate passes once at least this many OSD deployments are ready (nodes x data disks)
+      default: 3
+      minimum: 1
+    timeoutSeconds:
+      type: integer
+      title: Wait Timeout (seconds)
+      default: 1200
+      minimum: 120
+    requiredStorageClasses:
+      type: array
+      title: Required StorageClasses
+      items:
+        type: string
+      default:
+        - ceph-block
+        - ceph-filesystem
+    image:
+      type: object
+      title: Job Image
+      properties:
+        repository:
+          type: string
+          title: Repository
+          default: mirror.gcr.io/alpine/k8s
+        tag:
+          type: string
+          title: Tag
+          default: "1.34.1"
+
+uiSchema:
+  image:
+    ui:collapsed: true

@@ -1,0 +1,205 @@
+# Velero S3 bucket on Ceph RGW — replaces MinIO
+#
+# With Ceph in the cluster there is no reason to run a second object store just
+# for backups: CephObjectStore gives an S3 endpoint backed by the same OSDs.
+#
+# Two pieces are needed to make Velero use it, and neither is automatic:
+#
+#   ObjectBucketClaim  -> Rook's bucket provisioner creates the bucket AND a
+#                         Secret (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)
+#                         plus a ConfigMap (BUCKET_HOST/NAME/PORT) in this
+#                         namespace, named after the claim.
+#   credentials Job    -> Velero does not read those keys; it wants an
+#                         AWS-style INI blob under the `cloud` key of a Secret.
+#                         The hook Job below translates one into the other.
+#
+# The Job is a Helm post-install/post-upgrade hook, so the storage stage does
+# not go Ready until the bucket exists and the credentials Secret is written —
+# and the backup stage, which comes later in the Kustomization chain, therefore
+# starts with a Velero BackupStorageLocation that can actually authenticate.
+
+id: ceph-velero-bucket
+name: Ceph Bucket for Velero
+description: S3 bucket on Ceph RGW plus Velero-format credentials (replaces MinIO)
+category: storage
+categoryName: Storage
+categoryDescription: Storage, backups, and data management
+icon: "🪣"
+priority: 57
+docsUrl: https://rook.io/docs/rook/latest/Storage-Configuration/Object-Storage-RGW/ceph-object-bucket-claim/
+
+chartType: custom
+namespace: o0-velero
+releaseName: ceph-velero-bucket
+createNamespace: false
+timeout: 15m
+
+dependsOn:
+  - ceph-storage-ready
+
+templates:
+  obc.yaml: |
+    apiVersion: objectbucket.io/v1alpha1
+    kind: ObjectBucketClaim
+    metadata:
+      name: {{ .Values.bucketName | default "velero" }}
+      namespace: {{ .Release.Namespace }}
+    spec:
+      bucketName: {{ .Values.bucketName | default "velero" }}
+      storageClassName: {{ .Values.bucketStorageClass | default "ceph-bucket" }}
+
+  rbac.yaml: |
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: {{ .Release.Name }}
+      namespace: {{ .Release.Namespace }}
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: {{ .Release.Name }}
+      namespace: {{ .Release.Namespace }}
+    rules:
+      - apiGroups: [""]
+        resources: ["secrets", "configmaps"]
+        verbs: ["get", "list", "watch", "create", "update", "patch"]
+      - apiGroups: ["objectbucket.io"]
+        resources: ["objectbucketclaims"]
+        verbs: ["get", "list", "watch"]
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: {{ .Release.Name }}
+      namespace: {{ .Release.Namespace }}
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: {{ .Release.Name }}
+    subjects:
+      - kind: ServiceAccount
+        name: {{ .Release.Name }}
+        namespace: {{ .Release.Namespace }}
+
+  credentials-job.yaml: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: {{ .Release.Name }}
+      namespace: {{ .Release.Namespace }}
+      annotations:
+        "helm.sh/hook": post-install,post-upgrade
+        "helm.sh/hook-weight": "10"
+        "helm.sh/hook-delete-policy": before-hook-creation
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: {{ .Values.timeoutSeconds | default 600 }}
+      template:
+        metadata:
+          name: {{ .Release.Name }}
+        spec:
+          serviceAccountName: {{ .Release.Name }}
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: credentials
+              image: {{ (.Values.image).repository | default "mirror.gcr.io/alpine/k8s" }}:{{ (.Values.image).tag | default "1.34.1" }}
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 128Mi
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  NS={{ .Release.Namespace }}
+                  OBC={{ .Values.bucketName | default "velero" }}
+                  DEST={{ .Values.credentialsSecret | default "velero-s3-credentials" }}
+
+                  echo "waiting for the object bucket claim $OBC to be provisioned"
+                  i=0
+                  while [ "$i" -lt 60 ]; do
+                    phase=$(kubectl -n "$NS" get objectbucketclaim "$OBC" -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
+                    if kubectl -n "$NS" get secret "$OBC" >/dev/null 2>&1; then
+                      echo "  bucket ready (phase=${phase:-<none>})"
+                      break
+                    fi
+                    echo "  phase=${phase:-<none>} — waiting"
+                    i=$((i+1))
+                    sleep 5
+                  done
+
+                  if ! kubectl -n "$NS" get secret "$OBC" >/dev/null 2>&1; then
+                    echo "ERROR: OBC $OBC never produced its credentials secret" >&2
+                    kubectl -n "$NS" get objectbucketclaim "$OBC" -o wide >&2 || true
+                    exit 1
+                  fi
+
+                  AK=$(kubectl -n "$NS" get secret "$OBC" -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' | base64 -d)
+                  SK=$(kubectl -n "$NS" get secret "$OBC" -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' | base64 -d)
+                  BUCKET=$(kubectl -n "$NS" get configmap "$OBC" -o jsonpath='{.data.BUCKET_NAME}' 2>/dev/null || echo "$OBC")
+                  HOST=$(kubectl -n "$NS" get configmap "$OBC" -o jsonpath='{.data.BUCKET_HOST}' 2>/dev/null || echo "")
+                  PORT=$(kubectl -n "$NS" get configmap "$OBC" -o jsonpath='{.data.BUCKET_PORT}' 2>/dev/null || echo "")
+
+                  if [ -z "$AK" ] || [ -z "$SK" ]; then
+                    echo "ERROR: bucket secret has no access keys" >&2
+                    exit 1
+                  fi
+
+                  # Velero reads an AWS credentials file, not discrete keys.
+                  kubectl -n "$NS" create secret generic "$DEST" \
+                    --from-literal=cloud="[default]
+                  aws_access_key_id=$AK
+                  aws_secret_access_key=$SK
+                  " --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
+                  echo "wrote $NS/$DEST for bucket $BUCKET at ${HOST}:${PORT}"
+
+defaultValues:
+  bucketName: velero
+  bucketStorageClass: ceph-bucket
+  credentialsSecret: velero-s3-credentials
+  timeoutSeconds: 600
+  image:
+    repository: mirror.gcr.io/alpine/k8s
+    tag: "1.34.1"
+
+jsonSchema:
+  type: object
+  properties:
+    bucketName:
+      type: string
+      title: Bucket Name
+      default: velero
+    bucketStorageClass:
+      type: string
+      title: Bucket StorageClass
+      description: StorageClass created by the CephObjectStore (cephObjectStores[].storageClass.name)
+      default: ceph-bucket
+    credentialsSecret:
+      type: string
+      title: Velero Credentials Secret
+      description: Secret written with an AWS-style INI blob under the `cloud` key
+      default: velero-s3-credentials
+    timeoutSeconds:
+      type: integer
+      title: Wait Timeout (seconds)
+      default: 600
+      minimum: 60
+
+uiSchema:
+  image:
+    ui:collapsed: true

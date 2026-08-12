@@ -1,9 +1,24 @@
-# Rook Ceph Operator - Storage Orchestration
-# Auto-generated component definition
+# Rook Ceph Operator — Storage Orchestration
+#
+# Rook v1.20 no longer ships the CSI drivers in-tree: the `ceph-csi-operator`
+# chart (https://ceph.github.io/ceph-csi-operator) is pulled in as a subchart,
+# gated on `csi.installCsiOperator`. It brings the Driver/OperatorConfig CRDs
+# and reconciles the RBD + CephFS provisioners/node plugins itself, so the old
+# `csi.enableRbdDriver` / `csi.enableCephfsDriver` toggles no longer exist.
+# `helm pull --untar` vendors the subchart under charts/, so nothing extra is
+# needed at vendor time.
+#
+# Talos notes:
+#   - rbd, ceph and libceph are BUILT INTO the Talos kernel (modules.builtin),
+#     so krbd and the CephFS kernel client work with no machine-config changes.
+#   - the namespace must be PodSecurity `privileged` (mon/osd/csi are privileged
+#     and use hostPath) — see podSecurityEnforce below.
+#   - OSD disks must be raw: no partition table, no filesystem, no old ZFS/LVM
+#     labels. The lab gets fresh non-persistent OpenNebula datablocks per VM.
 
 id: rook-ceph-operator
 name: Rook Ceph Operator
-description: Cloud-native storage orchestrator for Kubernetes, providing Ceph storage
+description: Cloud-native storage orchestrator for Kubernetes, providing Ceph block, file and object storage
 category: storage
 categoryName: Storage
 categoryDescription: Storage, backups, and data management
@@ -16,25 +31,50 @@ chartType: upstream
 namespace: o0-rook-ceph
 releaseName: rook-ceph
 createNamespace: true
+podSecurityEnforce: privileged
 timeout: 10m
 
 upstream:
   repository: https://charts.rook.io/release
   chartName: rook-ceph
-  version: "v1.19.1"
-  appVersion: "1.19.1"
+  version: "v1.20.3"
+  appVersion: "1.20.3"
 
 suggestsInstances:
   - rook-ceph-cluster
 
-dependsOn: []
+# VolumeSnapshot CRDs must exist before the CSI drivers advertise snapshot
+# support and before rook-ceph-cluster creates its VolumeSnapshotClasses.
+dependsOn:
+  - snapshot-controller
+  # monitoring.enabled renders a ServiceMonitor (monitoring.coreos.com/v1).
+  - prometheus-operator-crds
 
 defaultValues:
   crds:
     enabled: true
+
   csi:
-    enableRbdDriver: true
-    enableCephfsDriver: true
+    # Install the ceph-csi-operator subchart (RBD + CephFS drivers).
+    installCsiOperator: true
+
+  # Device discovery is not needed: the cluster pins OSD devices with an
+  # explicit deviceFilter, and the discover DaemonSet only adds noise.
+  enableDiscoveryDaemon: false
+
+  # ServiceMonitor for the operator; the cluster chart handles Ceph's own
+  # metrics. Requires prometheus-operator CRDs (installed in the crds category).
+  monitoring:
+    enabled: true
+
+  logLevel: INFO
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      memory: "512Mi"
 
 jsonSchema:
   type: object
@@ -49,22 +89,18 @@ jsonSchema:
           default: true
     csi:
       type: object
-      title: CSI Drivers
+      title: CSI
       properties:
-        enableRbdDriver:
+        installCsiOperator:
           type: boolean
-          title: Enable RBD Driver
-          description: Block storage driver
+          title: Install ceph-csi-operator
+          description: Deploys the separate ceph-csi-operator subchart (RBD + CephFS drivers)
           default: true
-        enableCephfsDriver:
-          type: boolean
-          title: Enable CephFS Driver
-          description: Filesystem storage driver
-          default: true
-        enableNFSDriver:
-          type: boolean
-          title: Enable NFS Driver
-          default: false
+    enableDiscoveryDaemon:
+      type: boolean
+      title: Enable Discovery Daemon
+      description: Continuously scans nodes for new devices (not needed with an explicit deviceFilter)
+      default: false
     monitoring:
       type: object
       title: Monitoring
@@ -72,7 +108,16 @@ jsonSchema:
         enabled:
           type: boolean
           title: Enable Prometheus Metrics
-          default: false
+          default: true
+    logLevel:
+      type: string
+      title: Log Level
+      enum:
+        - ERROR
+        - WARNING
+        - INFO
+        - DEBUG
+      default: INFO
     resources:
       type: object
       title: Operator Resources

@@ -1,9 +1,36 @@
-# Rook Ceph Cluster - Ceph Storage Instance
-# Auto-generated component definition
+# Rook Ceph Cluster — CephCluster + pools + StorageClasses
+#
+# Deploys, in one Helm release and in the order Rook itself enforces:
+#   CephCluster (mons -> mgr -> OSDs) -> CephBlockPool + CephFilesystem
+#   -> StorageClasses -> VolumeSnapshotClasses
+#
+# Pool layout, replication size, device selection, networking and RGW are
+# DEPLOYMENT decisions: they ship here only as plain defaults (replica 3, all
+# devices, no object store) and are meant to be set per cluster from the
+# bootstrap request or the UI form — see jsonSchema below.
+#   ceph-block       RBD, default SC. Suits KubeVirt/CDI VM disks (Filesystem
+#                    and Block volumeMode, RWX-Block for live migration) and
+#                    ordinary RWO PVCs.
+#   ceph-filesystem  CephFS, RWX SC for anything that needs shared access.
+#   cephObjectStores S3 via RGW; empty by default.
+#
+# The CSI driver name is derived from `operatorNamespace`, so it MUST match the
+# namespace the rook-ceph operator actually runs in (o0-rook-ceph here) or the
+# StorageClasses will point at a provisioner that does not exist.
+#
+# cephClusterSpec.network.provider: "host" is worth considering on overlay
+# CNIs — the RBD/CephFS *kernel* clients run on the node, not in a pod, so
+# keeping Ceph daemons on host IPs removes any dependency on host->pod-IP
+# reachability and skips a layer of encapsulation. It is not the default here.
+#
+# NOTE on values merging: the generator's deep_merge REPLACES lists rather than
+# appending, so cephBlockPools / cephFileSystems below must repeat the upstream
+# defaults in full (including the CSI secret parameters) — dropping them would
+# produce StorageClasses that cannot authenticate to Ceph.
 
 id: rook-ceph-cluster
 name: Rook Ceph Cluster
-description: Deploy a Ceph storage cluster managed by Rook operator
+description: Ceph storage cluster with RBD (block) and CephFS (shared filesystem) pools and StorageClasses
 category: storage
 categoryName: Storage
 categoryDescription: Storage, backups, and data management
@@ -11,7 +38,6 @@ icon: "💾"
 priority: 50
 docsUrl: https://rook.io/docs/rook/latest/CRDs/Cluster/ceph-cluster-crd/
 
-# Multi-instance - can deploy multiple Ceph clusters
 multiInstance: true
 requiresOperator: rook-ceph-operator
 
@@ -19,42 +45,162 @@ chartType: upstream
 namespace: o0-rook-ceph
 releaseName: rook-ceph-cluster
 createNamespace: false
-timeout: 15m
+timeout: 20m
 
 upstream:
   repository: https://charts.rook.io/release
   chartName: rook-ceph-cluster
-  version: "v1.19.1"
-  appVersion: "1.19.1"
+  version: "v1.20.3"
+  appVersion: "1.20.3"
 
 dependsOn:
   - rook-ceph-operator
+  # StorageClasses point at the CSI provisioner, so the Driver CRs + their
+  # ServiceAccounts must exist before volumes can be created.
+  - ceph-csi-drivers
+  # monitoring.createPrometheusRules renders a PrometheusRule; without the
+  # prometheus-operator CRDs Helm fails outright with
+  # 'no matches for kind "PrometheusRule" in version "monitoring.coreos.com/v1"'.
+  - prometheus-operator-crds
 
 defaultValues:
-  operatorNamespace: rook-ceph
+  # The namespace the operator runs in — the CSI provisioner name is derived
+  # from it, so it must match wherever rook-ceph-operator is deployed. Every
+  # other value here is a plain default: pool layout, replication, device
+  # selection, networking and sizing are deployment decisions and belong in the
+  # request (or the UI form), not in this file.
+  operatorNamespace: o0-rook-ceph
+
+  # `ceph -s` from inside the cluster; the first thing you need when storage
+  # misbehaves.
+  toolbox:
+    enabled: true
+
+  monitoring:
+    enabled: true
+    createPrometheusRules: true
+
   cephClusterSpec:
+    dataDirHostPath: /var/lib/rook
     mon:
       count: 3
+      allowMultiplePerNode: false
     mgr:
       count: 2
+      allowMultiplePerNode: false
+      modules:
+        - name: rook
+          enabled: true
     dashboard:
       enabled: true
+      ssl: false
+    storage:
+      useAllNodes: true
+      useAllDevices: true
+
+  # Upstream defaults: one replicated RBD pool as the default StorageClass and
+  # one CephFS for RWX. Override sizes/filters per deployment.
   cephBlockPools:
     - name: ceph-blockpool
       spec:
+        failureDomain: host
         replicated:
           size: 3
       storageClass:
         enabled: true
         name: ceph-block
         isDefault: true
+        reclaimPolicy: Delete
+        allowVolumeExpansion: true
+        volumeBindingMode: "Immediate"
+        annotations: {}
+        labels: {}
+        mountOptions: []
+        allowedTopologies: []
+        parameters:
+          imageFormat: "2"
+          imageFeatures: layering
+          csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+          csi.storage.k8s.io/provisioner-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+          csi.storage.k8s.io/controller-expand-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/controller-publish-secret-name: rook-csi-rbd-provisioner
+          csi.storage.k8s.io/controller-publish-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+          csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/fstype: ext4
+
+  cephFileSystems:
+    - name: ceph-filesystem
+      spec:
+        metadataPool:
+          replicated:
+            size: 3
+        dataPools:
+          - name: data0
+            failureDomain: host
+            replicated:
+              size: 3
+        metadataServer:
+          activeCount: 1
+          activeStandby: true
+      storageClass:
+        enabled: true
+        isDefault: false
+        name: ceph-filesystem
+        pool: data0
+        reclaimPolicy: Delete
+        allowVolumeExpansion: true
+        volumeBindingMode: "Immediate"
+        annotations: {}
+        labels: {}
+        mountOptions: []
+        parameters:
+          csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
+          csi.storage.k8s.io/provisioner-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/controller-expand-secret-name: rook-csi-cephfs-provisioner
+          csi.storage.k8s.io/controller-expand-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/controller-publish-secret-name: rook-csi-cephfs-provisioner
+          csi.storage.k8s.io/controller-publish-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
+          csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/fstype: ext4
+
+  # Object storage (S3/RGW) is opt-in — enable it in the request/UI when the
+  # cluster should serve buckets (e.g. instead of running a separate MinIO).
+  cephObjectStores: []
+
+  cephBlockPoolsVolumeSnapshotClass:
+    enabled: true
+    name: ceph-block
+    isDefault: true
+    deletionPolicy: Delete
+
+  cephFileSystemVolumeSnapshotClass:
+    enabled: true
+    name: ceph-filesystem
+    isDefault: false
+    deletionPolicy: Delete
 
 jsonSchema:
   type: object
   properties:
+    operatorNamespace:
+      type: string
+      title: Operator Namespace
+      description: Namespace the rook-ceph operator runs in (CSI driver name is derived from it)
+      default: o0-rook-ceph
+    toolbox:
+      type: object
+      title: Toolbox
+      properties:
+        enabled:
+          type: boolean
+          title: Deploy Ceph Toolbox
+          default: true
     cephClusterSpec:
       type: object
-      title: Ceph Cluster Configuration
+      title: Ceph Cluster
       properties:
         mon:
           type: object
@@ -86,7 +232,19 @@ jsonSchema:
             ssl:
               type: boolean
               title: Enable SSL
-              default: true
+              default: false
+        network:
+          type: object
+          title: Network
+          properties:
+            provider:
+              type: string
+              title: Network Provider
+              description: "'host' keeps Ceph daemons on node IPs; empty uses the pod network"
+              enum:
+                - host
+                - ""
+              default: host
         storage:
           type: object
           title: Storage
@@ -98,8 +256,13 @@ jsonSchema:
             useAllDevices:
               type: boolean
               title: Use All Devices
-              description: Use all available devices on nodes
-              default: true
+              description: Leave false and pin devices with a filter
+              default: false
+            deviceFilter:
+              type: string
+              title: Device Filter
+              description: Regex of device names to use for OSDs (e.g. ^vd[b-z])
+              default: "^vd[b-z]"
     cephBlockPools:
       type: array
       title: Block Pools
@@ -118,7 +281,7 @@ jsonSchema:
                   size:
                     type: integer
                     title: Replication Size
-                    default: 3
+                    default: 2
     cephFileSystems:
       type: array
       title: File Systems

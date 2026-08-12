@@ -162,6 +162,41 @@ components:
     description: Storage pool configuration
     depends_on_bundle: linstor-cluster
 
+  - id: rook-ceph-operator
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Rook operator for Ceph (block + shared filesystem, replicated across nodes)
+    exclusive_group: storage
+
+  - id: ceph-csi-drivers
+    required: false
+    default_enabled: false
+    hidden: true
+    description: RBD/CephFS CSI driver instances (Rook 1.20 no longer ships them)
+    depends_on_bundle: rook-ceph-operator
+
+  - id: rook-ceph-cluster
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Ceph cluster with RBD and CephFS pools and StorageClasses
+    depends_on_bundle: ceph-csi-drivers
+
+  - id: ceph-storage-ready
+    required: false
+    default_enabled: false
+    hidden: true
+    description: Blocks the storage stage until Ceph actually serves I/O
+    depends_on_bundle: rook-ceph-cluster
+
+  - id: ceph-velero-bucket
+    required: false
+    default_enabled: false
+    hidden: true
+    description: S3 bucket on Ceph RGW for Velero (replaces MinIO when storage is Ceph)
+    depends_on_bundle: ceph-storage-ready
+
   # === Load Balancer ===
   - id: metallb
     required: false
@@ -191,10 +226,12 @@ components:
     exclusive_group: ingress
 
   # === S3 Storage (for backups) ===
+  # Not needed when storage_backend is rook-ceph: CephObjectStore + the
+  # ceph-velero-bucket component provide S3 from the same OSDs.
   - id: minio
     required: false
     default_enabled: true
-    description: S3-compatible storage for Velero backups and artifacts
+    description: S3-compatible storage for Velero backups and artifacts (skip it with Ceph — use ceph-velero-bucket)
 
   # === Backup ===
   - id: snapshot-controller
@@ -395,6 +432,8 @@ parameters:
         label: Longhorn (simple, includes UI)
       - value: linstor
         label: Linstor (high performance DRBD)
+      - value: rook-ceph
+        label: Rook/Ceph (block + shared filesystem + snapshots)
     default: longhorn
     required: true
     category: storage
