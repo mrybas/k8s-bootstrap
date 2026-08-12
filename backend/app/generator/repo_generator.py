@@ -24,6 +24,7 @@ Key Pattern:
 """
 import logging
 import os
+import shutil
 from pathlib import Path
 from typing import List, Dict, Any, Set
 from datetime import datetime
@@ -789,12 +790,55 @@ secrets/
                     "version": "0.0.1",
                     "description": defn.get("description", ""),
                 })
-                self._yaml(chart_path / "values.yaml", tc.get("defaultValues", {}))
+                # Values: start from the bundled chart's own defaults (image
+                # references, scheduling, ...) and overlay the tenant defaults.
+                # Writing only the tenant defaults left the templates without
+                # e.g. .Values.images.csiDriver and the release failed to render.
+                base_values: Dict[str, Any] = {}
+                from app.generator.manifest_chart_generator import (
+                    CHARTS_DIR as BUNDLED_CHARTS_DIR,
+                    get_manifest_chart_generator,
+                )
+                if get_manifest_chart_generator().has_bundled_chart(addon_id):
+                    bundled_values = BUNDLED_CHARTS_DIR / addon_id / "values.yaml"
+                    if bundled_values.is_file():
+                        base_values = yaml.safe_load(bundled_values.read_text()) or {}
+                self._yaml(
+                    chart_path / "values.yaml",
+                    deep_merge(base_values, tc.get("defaultValues", {})),
+                )
                 # Copy inline templates
                 tpl_dir = chart_path / "templates"
                 tpl_dir.mkdir(exist_ok=True)
-                for tpl_name, content in defn.get("templates", {}).items():
+                inline = defn.get("templates", {}) or {}
+                for tpl_name, content in inline.items():
                     (tpl_dir / tpl_name).write_text(content)
+                if not inline:
+                    # A custom addon may keep its manifests in a BUNDLED chart
+                    # (definitions/charts/<id>/) instead of inline `templates:`
+                    # — kubevirt-csi-driver does. Without this the tenant chart
+                    # shipped as Chart.yaml + values.yaml and an empty
+                    # templates/ dir, so the addon installed "successfully" and
+                    # created nothing at all.
+                    from app.generator.manifest_chart_generator import get_manifest_chart_generator
+                    if get_manifest_chart_generator().has_bundled_chart(addon_id):
+                        from app.generator.manifest_chart_generator import CHARTS_DIR as BUNDLED_CHARTS_DIR
+                        src = BUNDLED_CHARTS_DIR / addon_id / "templates"
+                        copied = 0
+                        if src.is_dir():
+                            for f in src.iterdir():
+                                if f.is_file():
+                                    shutil.copy2(f, tpl_dir / f.name)
+                                    copied += 1
+                        logger.info(
+                            f"tenant-charts/{category}/{addon_id}: copied {copied} template(s) "
+                            f"from the bundled chart"
+                        )
+                    else:
+                        logger.warning(
+                            f"tenant-charts/{category}/{addon_id} has no inline templates and "
+                            f"no bundled chart — the addon would deploy nothing"
+                        )
                 logger.info(f"Generated tenant-charts/{category}/{addon_id}/ (custom)")
             elif repo:
                 # Generate wrapper chart with upstream dependency
