@@ -79,6 +79,15 @@ components:
     description: Disk image import and management
     depends_on_bundle: cdi-crds
 
+  # Without this, any DataVolume that omits accessMode/volumeMode — which is
+  # every tenant-cluster PVC coming through kubevirt-csi — stalls on
+  # ErrClaimNotValid, because CDI cannot auto-profile a Rook provisioner that
+  # is namespaced anywhere but `rook-ceph`.
+  - id: cdi-storage-profiles
+    required: false
+    description: accessMode/volumeMode defaults for StorageClasses CDI cannot auto-profile
+    depends_on_bundle: kubevirt-cdi
+
   # === Multi-tenancy (Kamaji + PostgreSQL) ===
   - id: cloudnative-pg
     required: true
@@ -621,3 +630,4 @@ install_order:
   - kubevirt-operator
   - cdi-crds
   - kubevirt-cdi
+  - cdi-storage-profiles
