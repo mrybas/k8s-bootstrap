@@ -33,7 +33,7 @@ podSecurityEnforce: privileged  # Required for node metrics scraping
 upstream:
   repository: https://victoriametrics.github.io/helm-charts
   chartName: victoria-metrics-operator
-  version: "0.58.1"
+  version: "0.67.2"
 
 defaultValues:
   # CRDs are installed by victoria-metrics-crds component

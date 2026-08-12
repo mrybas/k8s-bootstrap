@@ -15,7 +15,7 @@ podSecurityEnforce: privileged  # Required for node-agent (hostPath volumes)
 upstream:
   repository: https://vmware-tanzu.github.io/helm-charts
   chartName: velero
-  version: "11.3.2"
+  version: "12.1.0"
 
 dependsOn:
   - velero-crds

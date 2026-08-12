@@ -21,7 +21,7 @@ timeout: 5m
 upstream:
   repository: https://grafana.github.io/helm-charts
   chartName: alloy
-  version: "1.6.0"
+  version: "1.11.1"
   appVersion: "1.6.0"
 
 dependsOn:

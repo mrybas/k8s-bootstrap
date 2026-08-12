@@ -20,7 +20,7 @@ timeout: 5m
 upstream:
   repository: https://pkgs.tailscale.com/helmcharts
   chartName: tailscale-operator
-  version: "1.92.5"
+  version: "1.102.2"
   appVersion: "1.78.3"
 
 dependsOn: []

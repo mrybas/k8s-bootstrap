@@ -25,7 +25,7 @@ timeout: 15m
 upstream:
   repository: https://prometheus-community.github.io/helm-charts
   chartName: kube-prometheus-stack
-  version: "81.5.2"
+  version: "88.2.0"
   appVersion: "0.79.2"
 
 # Dependencies

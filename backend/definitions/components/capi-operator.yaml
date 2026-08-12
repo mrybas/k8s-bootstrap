@@ -24,7 +24,7 @@ timeout: 5m
 upstream:
   repository: https://kubernetes-sigs.github.io/cluster-api-operator
   chartName: cluster-api-operator
-  version: "0.25.0"
+  version: "0.28.0"
 
 # CAPI Operator requires cert-manager for webhook TLS
 requiresCrds:

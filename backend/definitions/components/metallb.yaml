@@ -18,7 +18,7 @@ podSecurityEnforce: privileged  # Required for speaker (hostNetwork, NET_RAW)
 upstream:
   repository: https://metallb.github.io/metallb
   chartName: metallb
-  version: 0.15.3
+  version: 0.16.1
 defaultValues:
   controller:
     enabled: true

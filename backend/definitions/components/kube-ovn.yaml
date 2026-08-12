@@ -21,7 +21,7 @@ timeout: 15m
 upstream:
   repository: https://kubeovn.github.io/kube-ovn
   chartName: kube-ovn
-  version: "1.15.3"
+  version: "v1.16.2"
   appVersion: "v1.15.3"
 
 # No dependencies - Kube-OVN is a standalone CNI

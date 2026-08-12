@@ -23,7 +23,13 @@ createNamespace: true
 upstream:
   repository: https://docs.tigera.io/calico/charts
   chartName: tigera-operator
-  version: "v3.29.1"
+  # NOT v3.32.x: from Calico 3.32 the tigera-operator chart stopped shipping a
+  # crds/ directory and keeps its CRDs as ordinary templates. Helm then builds
+  # the manifest before those CRDs exist and the very first install fails with
+  # 'no matches for kind "Installation"/"APIServer"/"Goldmane" in
+  # operator.tigera.io/v1' — nothing is applied, so it can never self-heal.
+  # 3.31.3 is the newest chart that still installs cleanly in one pass.
+  version: "v3.31.3"
 
 # --- Tenant Addon Configuration ---
 tenantAddon: true

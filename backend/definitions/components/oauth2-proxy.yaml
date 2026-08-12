@@ -19,7 +19,7 @@ createNamespace: true
 upstream:
   repository: https://oauth2-proxy.github.io/manifests
   chartName: oauth2-proxy
-  version: "10.1.3"
+  version: "10.7.0"
 
 defaultValues:
   config:

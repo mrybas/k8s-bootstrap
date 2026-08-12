@@ -19,7 +19,7 @@ createNamespace: true
 upstream:
   repository: https://kubernetes-sigs.github.io/external-dns
   chartName: external-dns
-  version: "1.20.0"
+  version: "1.21.1"
 
 defaultValues:
   provider: cloudflare

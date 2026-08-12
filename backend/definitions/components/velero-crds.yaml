@@ -26,7 +26,7 @@ timeout: 5m
 upstream:
   repository: https://vmware-tanzu.github.io/helm-charts
   chartName: velero
-  version: "11.3.2"
+  version: "12.1.0"
 
 # CRDs have no dependencies
 dependsOn: []

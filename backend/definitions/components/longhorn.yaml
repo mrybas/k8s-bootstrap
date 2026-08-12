@@ -20,7 +20,7 @@ podSecurityEnforce: privileged  # Required for hostPath, privileged containers
 upstream:
   repository: https://charts.longhorn.io
   chartName: longhorn
-  version: "1.11.0"
+  version: "1.12.0"
 
 defaultValues:
   persistence:

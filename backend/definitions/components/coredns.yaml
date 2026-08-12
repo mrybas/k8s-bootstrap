@@ -22,7 +22,7 @@ note: "CoreDNS is typically pre-installed in most Kubernetes distributions. Use 
 upstream:
   repository: https://coredns.github.io/helm
   chartName: coredns
-  version: "1.45.2"
+  version: "1.47.0"
 
 defaultValues:
   replicaCount: 2

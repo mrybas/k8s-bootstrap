@@ -40,7 +40,9 @@ class GitAuthConfig:
 class BootstrapGenerator:
     """Generates the bootstrap infrastructure for Flux"""
     
-    FLUX_OPERATOR_VERSION = "0.38.1"
+    # Keep in sync with definitions/components/flux-operator.yaml — the installer
+    # helm-installs this version directly, before Flux takes over from git.
+    FLUX_OPERATOR_VERSION = "0.58.0"
     
     def __init__(self, cluster_name: str, repo_url: str, branch: str = "main", 
                  vendor_charts: bool = False, git_auth: GitAuthConfig = None,

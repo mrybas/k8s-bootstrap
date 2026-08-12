@@ -20,7 +20,7 @@ timeout: 5m
 upstream:
   repository: https://bryopsida.github.io/wireguard-chart
   chartName: wireguard
-  version: "0.31.0"
+  version: "0.32.0"
   appVersion: "latest"
 
 dependsOn: []

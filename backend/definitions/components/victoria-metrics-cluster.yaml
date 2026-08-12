@@ -20,7 +20,7 @@ timeout: 10m
 upstream:
   repository: https://victoriametrics.github.io/helm-charts/
   chartName: victoria-metrics-cluster
-  version: "0.34.0"
+  version: "0.48.0"
   appVersion: "v1.106.1"
 
 dependsOn:

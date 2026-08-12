@@ -20,7 +20,7 @@ timeout: 15m
 upstream:
   repository: https://grafana.github.io/helm-charts
   chartName: mimir-distributed
-  version: "6.0.5"
+  version: "6.1.0"
   appVersion: "2.14.0"
 
 dependsOn: []

@@ -19,7 +19,7 @@ createNamespace: true
 upstream:
   repository: https://charts.fairwinds.com/stable
   chartName: vpa
-  version: "4.10.1"
+  version: "4.12.5"
 
 defaultValues:
   recommender:

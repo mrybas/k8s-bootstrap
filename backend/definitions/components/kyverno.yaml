@@ -24,7 +24,7 @@ timeout: 10m
 upstream:
   repository: https://kyverno.github.io/kyverno/
   chartName: kyverno
-  version: "3.4.0"
+  version: "3.8.2"
   appVersion: "1.13.0"
 
 dependsOn:

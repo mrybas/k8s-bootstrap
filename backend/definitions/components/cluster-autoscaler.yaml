@@ -19,7 +19,7 @@ createNamespace: true
 upstream:
   repository: https://kubernetes.github.io/autoscaler
   chartName: cluster-autoscaler
-  version: "9.55.0"
+  version: "9.59.0"
 
 defaultValues:
   cloudProvider: ""

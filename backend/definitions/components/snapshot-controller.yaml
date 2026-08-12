@@ -20,7 +20,7 @@ timeout: 5m
 upstream:
   repository: https://piraeus.io/helm-charts
   chartName: snapshot-controller
-  version: "5.0.2"
+  version: "5.2.0"
   appVersion: "8.2.0"
 
 dependsOn: []

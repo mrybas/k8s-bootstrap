@@ -21,7 +21,7 @@ timeout: 5m
 upstream:
   repository: https://istio-release.storage.googleapis.com/charts
   chartName: gateway
-  version: "1.28.3"
+  version: "1.30.3"
   appVersion: "1.28.3"
 
 requiresCrds:

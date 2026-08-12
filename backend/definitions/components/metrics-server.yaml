@@ -21,7 +21,7 @@ timeout: 5m
 upstream:
   repository: https://kubernetes-sigs.github.io/metrics-server/
   chartName: metrics-server
-  version: "3.13.0"
+  version: "3.13.1"
   appVersion: "0.7.0"
 
 # Dependencies

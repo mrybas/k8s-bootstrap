@@ -20,7 +20,7 @@ timeout: 10m
 upstream:
   repository: https://dl.gitea.com/charts/
   chartName: gitea
-  version: "12.5.0"
+  version: "12.7.0"
   appVersion: "1.23.1"
 
 dependsOn: []

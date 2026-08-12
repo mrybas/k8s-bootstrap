@@ -20,7 +20,7 @@ timeout: 10m
 upstream:
   repository: https://grafana.github.io/helm-charts
   chartName: pyroscope
-  version: "1.18.1"
+  version: "2.2.1"
   appVersion: "1.11.0"
 
 dependsOn: []

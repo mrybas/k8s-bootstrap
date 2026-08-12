@@ -20,7 +20,7 @@ timeout: 20m
 upstream:
   repository: https://charts.gitlab.io/
   chartName: gitlab
-  version: "9.8.3"
+  version: "10.2.1"
   appVersion: "17.8.3"
 
 dependsOn: []
