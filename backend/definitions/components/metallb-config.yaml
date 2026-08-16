@@ -32,6 +32,7 @@ defaultValues:
       ipAddressPools:
         - default
   bgpAdvertisements: []
+  bgpPeers: []
 
 jsonSchema:
   type: object
@@ -67,6 +68,49 @@ jsonSchema:
             type: array
             items:
               type: string
+          interfaces:
+            type: array
+            title: Interfaces
+            description: >-
+              Announce only on these interfaces. Left empty MetalLB ARPs on
+              every interface it can see, so a VIP that belongs on a transit
+              bridge also answers on the management NIC.
+            items:
+              type: string
+          nodeSelectors:
+            type: array
+            title: Node selectors
+            description: >-
+              Which nodes may announce this pool. Also the only supported way
+              to move a VIP off a node: `kubectl drain` does not, because the
+              speaker is a DaemonSet and the node stays up.
+            items:
+              type: object
+    bgpPeers:
+      type: array
+      title: BGP Peers
+      description: >-
+        BGPPeer objects. BGP mode needs at least one; the chart previously had
+        no way to express a peer at all, so it had to be applied by hand.
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+          myASN:
+            type: integer
+          peerASN:
+            type: integer
+          peerAddress:
+            type: string
+          peerPort:
+            type: integer
+          sourceAddress:
+            type: string
+          nodeSelectors:
+            type: array
+            items:
+              type: object
     bgpAdvertisements:
       type: array
       title: BGP Advertisements
@@ -92,6 +136,9 @@ uiSchema:
         ui:placeholder: "192.168.1.240-192.168.1.250 or 192.168.1.0/24"
   l2Advertisements:
     ui:help: "Use for Layer 2 mode (ARP/NDP)"
+  bgpPeers:
+    ui:collapsed: true
+    ui:help: "BGP mode: the peer(s) to talk to. Without one there is no session."
   bgpAdvertisements:
     ui:collapsed: true
     ui:help: "Use for BGP mode"
@@ -125,6 +172,36 @@ templates:
         {{- range .ipAddressPools }}
         - {{ . }}
         {{- end }}
+      {{- with .interfaces }}
+      interfaces:
+        {{- toYaml . | nindent 4 }}
+      {{- end }}
+      {{- with .nodeSelectors }}
+      nodeSelectors:
+        {{- toYaml . | nindent 4 }}
+      {{- end }}
+    {{- end }}
+  bgppeers.yaml: |
+    {{- range .Values.bgpPeers }}
+    ---
+    apiVersion: metallb.io/v1beta2
+    kind: BGPPeer
+    metadata:
+      name: {{ .name }}
+    spec:
+      myASN: {{ .myASN }}
+      peerASN: {{ .peerASN }}
+      peerAddress: {{ .peerAddress }}
+      {{- with .peerPort }}
+      peerPort: {{ . }}
+      {{- end }}
+      {{- with .sourceAddress }}
+      sourceAddress: {{ . }}
+      {{- end }}
+      {{- with .nodeSelectors }}
+      nodeSelectors:
+        {{- toYaml . | nindent 4 }}
+      {{- end }}
     {{- end }}
   bgpadvertisements.yaml: |
     {{- range .Values.bgpAdvertisements }}

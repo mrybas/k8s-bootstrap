@@ -32,8 +32,14 @@ defaultValues:
       annotations: {}
   speaker:
     enabled: true
-    frr:
-      enabled: false
+    # `speaker.frr` is deliberately absent. In MetalLB 0.16.1 it is mutually
+    # exclusive with the frr-k8s deployment the chart now ships:
+    #
+    #   speaker.frr.enabled and frrk8s.enabled / external are mutually exclusive!
+    #
+    # The chart then refuses to render, and because everything downstream
+    # depends on MetalLB the failure cascades — eight kustomizations went red
+    # from this one toggle on the lab. BGP mode comes from frr-k8s, not here.
     image:
       repository: quay.io/metallb/speaker
       tag: null
@@ -60,15 +66,4 @@ jsonSchema:
         enabled:
           type: boolean
           default: true
-        frr:
-          type: object
-          properties:
-            enabled:
-              type: boolean
-              title: Enable FRR (BGP)
-              default: false
-uiSchema:
-  speaker:
-    frr:
-      enabled:
-        ui:help: Enable for BGP mode, disable for Layer 2 mode
+uiSchema: {}
