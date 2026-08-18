@@ -392,5 +392,67 @@ class TestFormSchema:
                 check_field(field, f"{section_name}.{field_name}")
 
 
+class TestCapiBootstrapProviders:
+    """The providers a tenant cannot boot without.
+
+    CABPT is the only thing that hands a Talos worker its machineconfig. When
+    it was missing from this definition the stand still worked — because the
+    BootstrapProvider had been created by hand, carrying no Helm ownership
+    labels — so nothing failed until a clean cluster was built and every Talos
+    Machine sat in WaitingForBootstrapData with no error anywhere.
+
+    Provider versions are pinned to what the stand actually runs, for the same
+    reason: a rebuild that installs different versions is not a rebuild of the
+    proven stand, and the difference is invisible until something behaves
+    unlike it did before.
+    """
+
+    def _capi(self):
+        import yaml
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[2]
+        path = root / "backend/definitions/components/capi-providers.yaml"
+        return yaml.safe_load(path.read_text())
+
+    def test_talos_bootstrap_provider_is_declared(self):
+        talos = self._capi()["defaultValues"]["bootstrap"].get("talos")
+        assert talos is not None, (
+            "capi-providers declares no Talos bootstrap provider; a clean "
+            "cluster cannot boot a Talos tenant"
+        )
+        assert talos["enabled"] is True
+        assert talos["version"].startswith("v"), talos["version"]
+
+    def test_talos_provider_renders_into_the_chart(self):
+        # Present in defaultValues but absent from templates would install
+        # nothing, and the values would read as proof that it does.
+        templates = self._capi()["templates"]
+        assert "bootstrap-talos.yaml" in templates
+        body = templates["bootstrap-talos.yaml"]
+        assert "kind: BootstrapProvider" in body
+        assert "name: talos" in body
+        assert ".Values.bootstrap.talos.version" in body
+
+    def test_provider_versions_match_the_stand(self):
+        values = self._capi()["defaultValues"]
+        assert values["bootstrap"]["talos"]["version"] == "v0.6.12"
+        # Kamaji v0.19.0 is installed by delete+reinstall on the stand: its
+        # contract check gates upgrades, not installs. Reverting this default
+        # silently downgrades every rebuilt cluster.
+        assert values["controlPlane"]["kamaji"]["version"] == "v0.19.0"
+        assert values["infrastructure"]["kubevirt"]["version"] == "v0.11.2"
+
+    def test_schema_offers_every_provider_in_default_values(self):
+        # A value with no schema entry is invisible in the UI and silently
+        # dropped by a form round-trip.
+        d = self._capi()
+        schema = d["jsonSchema"]["properties"]
+        for section, entries in d["defaultValues"].items():
+            for name in entries:
+                assert name in schema[section]["properties"], (
+                    f"{section}.{name} has no jsonSchema entry"
+                )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
