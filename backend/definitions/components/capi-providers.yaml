@@ -5,7 +5,7 @@
 
 id: capi-providers
 name: Cluster API Providers
-description: Core, Bootstrap, ControlPlane (Kamaji), and Infrastructure (KubeVirt) providers for Cluster API
+description: Core, Bootstrap (kubeadm + Talos), ControlPlane (Kamaji), and Infrastructure (KubeVirt) providers for Cluster API
 category: multi-tenancy
 categoryName: Multi-tenancy
 categoryDescription: Tenant isolation and virtual clusters
@@ -33,6 +33,18 @@ defaultValues:
   bootstrap:
     kubeadm:
       version: v1.9.4
+    # CABPT — what turns a TalosConfigTemplate into bootstrap data. Without it
+    # the template is accepted by nobody: the Machine sits at
+    # WaitingForBootstrapData forever and no VM is ever built.
+    #
+    # Pinned, like every other provider here. It used to be created by the UI
+    # backend at tenant-create time with an empty spec, which means the
+    # operator installed whatever was newest that day — two clusters
+    # bootstrapped a week apart would run different CABPT versions, and
+    # nothing in either would say so.
+    talos:
+      enabled: true
+      version: v0.6.12
   controlPlane:
     kamaji:
       enabled: true
@@ -68,6 +80,18 @@ jsonSchema:
               type: string
               title: Kubeadm Bootstrap Version
               default: v1.9.4
+        talos:
+          type: object
+          title: Talos (CABPT)
+          properties:
+            enabled:
+              type: boolean
+              title: Enable Talos Bootstrap Provider
+              default: true
+            version:
+              type: string
+              title: Version
+              default: v0.6.12
     controlPlane:
       type: object
       title: Control Plane Providers
@@ -129,6 +153,17 @@ templates:
       namespace: o0-capi
     spec:
       version: {{ .Values.bootstrap.kubeadm.version }}
+
+  bootstrap-talos.yaml: |
+    {{- if .Values.bootstrap.talos.enabled }}
+    apiVersion: operator.cluster.x-k8s.io/v1alpha2
+    kind: BootstrapProvider
+    metadata:
+      name: talos
+      namespace: o0-capi
+    spec:
+      version: {{ .Values.bootstrap.talos.version }}
+    {{- end }}
 
   controlplane-kamaji.yaml: |
     {{- if .Values.controlPlane.kamaji.enabled }}
